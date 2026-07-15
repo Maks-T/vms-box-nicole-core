@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
+use Nicole\Box\Core\Support\CatalogCache;
 
 /**
  * @group Core: Вебхуки
@@ -74,6 +75,8 @@ class CalculatorWebhookController extends Controller
 
       if ($result->successful()) {
         cache()->forget(self::CACHE_KEY);
+        clearstatcache();
+        CatalogCache::invalidate();
         clearstatcache();
 
         Log::info('Calculator deployed successfully via webhook.');
