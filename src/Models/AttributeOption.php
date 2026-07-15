@@ -29,6 +29,7 @@ class AttributeOption extends Model implements HasMedia
     'external_code',
     'value',
     'meta',
+    'extra_value',
     'sort_order',
   ];
 
@@ -38,6 +39,7 @@ class AttributeOption extends Model implements HasMedia
   {
     return [
       'meta' => 'array',
+      'extra_value' => 'float',
       'sort_order' => 'integer',
     ];
   }

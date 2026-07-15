@@ -67,8 +67,7 @@ class OptionsRelationManager extends RelationManager
                   ->nullable()
                   ->helperText(__('Used for widget API mapping')),
 
-                
-                TextInput::make('meta.extra_value')
+                TextInput::make('extra_value')
                   ->label(__('Extra Value'))
                   ->numeric()
                   ->nullable()
@@ -82,7 +81,6 @@ class OptionsRelationManager extends RelationManager
               Section::make()
                 ->description(__('Define color or texture for this option'))
                 ->schema([
-                  
                   ColorPicker::make('meta.hex')
                     ->label(__('HEX Color'))
                     ->columnSpan(1),
@@ -114,7 +112,6 @@ class OptionsRelationManager extends RelationManager
           ->label(__('Photo'))
           ->circular(),
 
-        
         ColorColumn::make('meta.hex')
           ->label(__('Color'))
           ->copyable(),
@@ -138,10 +135,10 @@ class OptionsRelationManager extends RelationManager
           ->color('info')
           ->toggleable(),
 
-        
-        TextColumn::make('meta.extra_value')
+        TextColumn::make('extra_value')
           ->label(__('Extra Value'))
           ->numeric()
+          ->placeholder('—')
           ->toggleable(isToggledHiddenByDefault: true),
       ])
       ->reorderable('sort_order')
@@ -154,4 +151,5 @@ class OptionsRelationManager extends RelationManager
         DeleteAction::make(),
       ]);
   }
+
 }
