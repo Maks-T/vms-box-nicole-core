@@ -9,46 +9,56 @@ use Nicole\Box\Core\Models\Product;
 
 class ProductSelect extends Select
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
+  protected function setUp(): void
+  {
+    parent::setUp();
 
-        $this->allowHtml()
-            ->searchable()
-            ->getOptionLabelUsing(function ($value): ?string {
-                $product = Product::with('media')->find($value);
+    $this->allowHtml()
+      ->searchable()
+      ->getOptionLabelUsing(function ($value): ?string {
+        $product = Product::with('media')->find($value);
 
-                return static::renderProductOption($product);
-            })
-            ->getSearchResultsUsing(function (string $search) {
-                return Product::query()
-                    ->with('media')
-                    ->where('name->ru', 'ilike', "%{$search}%")
-                    ->limit(15)
-                    ->get()
-                    ->mapWithKeys(fn ($p) => [$p->id => static::renderProductOption($p)]);
-            });
+        return static::renderProductOption($product);
+      })
+      ->getOptionLabelsUsing(function (array $values): array {
+        return Product::query()
+          ->with('media')
+          ->whereIn('id', $values)
+          ->get()
+          ->mapWithKeys(fn($p) => [$p->id => static::renderProductOption($p)])
+          ->toArray();
+      })
+      ->getSearchResultsUsing(function (string $search) {
+        $locale = app()->getLocale();
+
+        return Product::query()
+          ->with('media')
+          ->where("name->{$locale}", 'ilike', "%{$search}%")
+          ->limit(15)
+          ->get()
+          ->mapWithKeys(fn ($p) => [$p->id => static::renderProductOption($p)]);
+      });
+  }
+
+  public static function renderProductOption(?Product $product): string
+  {
+    if (!$product) {
+      return '';
     }
 
-    public static function renderProductOption(?Product $product): string
-    {
-        if (! $product) {
-            return '';
-        }
+    $name = is_string($product->name) ? $product->name : 'Без названия';
+    $price = number_format((float)$product->min_price, 0, '.', ' ');
+    $initial = mb_strtoupper(mb_substr($name, 0, 1));
 
-        $name = is_string($product->name) ? $product->name : 'Без названия';
-        $price = number_format((float) $product->min_price, 0, '.', ' ');
-        $initial = mb_strtoupper(mb_substr($name, 0, 1));
+    $svg =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#f3f4f6"/><text x="50" y="54" font-family="sans-serif" font-size="40" font-weight="600" fill="#9ca3af" dominant-baseline="middle" text-anchor="middle">' .
+      $initial .
+      '</text></svg>';
+    $fallbackImage = 'data:image/svg+xml;base64,' . base64_encode($svg);
 
-        $svg =
-          '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#f3f4f6"/><text x="50" y="54" font-family="sans-serif" font-size="40" font-weight="600" fill="#9ca3af" dominant-baseline="middle" text-anchor="middle">'.
-          $initial.
-          '</text></svg>';
-        $fallbackImage = 'data:image/svg+xml;base64,'.base64_encode($svg);
+    $imageUrl = $product->getPreviewUrl() ?: $fallbackImage;
 
-        $imageUrl = $product->getPreviewUrl() ?: $fallbackImage;
-
-        return "
+    return "
       <div style='display: flex; align-items: center; gap: 12px; padding: 4px 0;'>
           <img src='{$imageUrl}'
                style='width: 40px; height: 40px; min-width: 40px; border-radius: 6px; object-fit: cover; border: 1px solid rgba(0,0,0,0.1); background-color: #f9fafb;'
@@ -69,5 +79,5 @@ class ProductSelect extends Select
           </div>
       </div>
     ";
-    }
+  }
 }
