@@ -36,7 +36,7 @@ class ProductVariantResource extends JsonResource
        * @var string
        * @example "p-101-pure-vanilla-3680"
        */
-      'code' => $this->sku,
+      'sku' => $this->sku,
 
       /**
        * Внешний код для интеграции с 1C / ERP.
