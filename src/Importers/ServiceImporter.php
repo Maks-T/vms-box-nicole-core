@@ -84,11 +84,12 @@ class ServiceImporter implements ImportModuleInterface
           'code' => $code,
           'type' => $attrDef['type'],
           'name' => $attrDef['name'],
-
+          'option_param_type' => $attrDef['option_param_type'] ?? null,
           'is_multiple' => $attrDef['is_multiple'] ?? false,
           'is_active' => true
         ]
       );
+
       $this->cachedAttributes[$code] = $attr;
       $syncData[$attr->id] = ['is_variant_only' => false, 'sort_order' => $sort++];
     }
@@ -96,8 +97,16 @@ class ServiceImporter implements ImportModuleInterface
 
     $targetAttr = Attribute::updateOrCreate(
       ['external_code' => 'attr_target_material'],
-      ['code' => 'target_material', 'type' => Attribute::TYPE_DICTIONARY, 'name' => ['ru' => 'Для материала', 'en' => 'For material'], 'is_active' => true, 'is_multiple' => false]
+      [
+        'code' => 'target_material',
+        'type' => Attribute::TYPE_DICTIONARY,
+        'name' => ['ru' => 'Для материала', 'en' => 'For material'],
+        'is_active' => true,
+        'is_multiple' => false,
+        'option_param_type' => 'string'
+      ]
     );
+
     $this->targetAttrId = $targetAttr->id;
     $syncData[$targetAttr->id] = ['is_variant_only' => true, 'sort_order' => $sort++];
 
@@ -106,7 +115,18 @@ class ServiceImporter implements ImportModuleInterface
 
     foreach ($data['services'] ?? [] as $srv) {
       if (!empty($srv['unit'])) {
-        Unit::firstOrCreate(['slug' => $srv['unit']], ['name' => ['ru' => $srv['unit'], 'en' => $srv['unit']], 'symbol' => ['ru' => $srv['unit'], 'en' => $srv['unit']]]);
+        Unit::firstOrCreate([
+          'slug' => $srv['unit']],
+          [
+            'name' => [
+              'ru' => $srv['unit'],
+              'en' => $srv['unit']
+            ],
+            'symbol' => [
+              'ru' => $srv['unit'],
+              'en' => $srv['unit']
+            ]
+          ]);
       }
     }
     $this->cachedUnits = Unit::pluck('id', 'slug')->toArray();
@@ -173,9 +193,9 @@ class ServiceImporter implements ImportModuleInterface
             );
             $recordData['value_option_id'] = $opt->id;
           } elseif ($attribute->type === Attribute::TYPE_BOOLEAN) {
-            $recordData['value_boolean'] = (bool) $val;
+            $recordData['value_boolean'] = (bool)$val;
           } else {
-            $recordData['value_string'] = (string) $val;
+            $recordData['value_string'] = (string)$val;
           }
 
           ProductAttributeValue::create($recordData);
@@ -189,11 +209,11 @@ class ServiceImporter implements ImportModuleInterface
           [
             'product_id' => $product->id,
             'sku' => "{$item['slug']}_{$materialCode}",
-            'cost_price' => (float) $price,
+            'cost_price' => (float)$price,
             'currency' => 'RUB',
             'is_default' => false,
             'is_active' => true,
-            'is_manual_pricing' => true, // Услуги всегда имеют фиксированную ручную цену
+            'is_manual_pricing' => true,
           ]
         );
 

@@ -42,6 +42,7 @@ class AttributeImporter implements ImportModuleInterface
           'code' => $attrData['code'],
           'name' => $attrData['name'],
           'type' => $attrData['type'],
+          'option_param_type' => $attrData['option_param_type'] ?? null,
           'complex_dictionary_id' => $complexDictId,
           'is_active' => true,
           'is_multiple' => $attrData['is_multiple'] ?? false,
@@ -58,7 +59,7 @@ class AttributeImporter implements ImportModuleInterface
             'slug' => $optData['slug'],
             'value' => $optData['value'],
 
-            'extra_value' => isset($optData['extra_value']) ? (float)$optData['extra_value'] : null,
+            'param' => $optData['param'] ?? null,
 
             'meta' => $optData['meta'] ?? null,
             'sort_order' => $sortOrder,

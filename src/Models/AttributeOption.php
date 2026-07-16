@@ -29,7 +29,7 @@ class AttributeOption extends Model implements HasMedia
     'external_code',
     'value',
     'meta',
-    'extra_value',
+    'param',
     'sort_order',
   ];
 
@@ -39,7 +39,6 @@ class AttributeOption extends Model implements HasMedia
   {
     return [
       'meta' => 'array',
-      'extra_value' => 'float',
       'sort_order' => 'integer',
     ];
   }
@@ -58,4 +57,25 @@ class AttributeOption extends Model implements HasMedia
   {
     return \Nicole\Box\Core\Database\Factories\AttributeOptionFactory::new();
   }
+
+  /**
+   * Динамический аксессор для автоматического приведения типа технического параметра.
+   * На фронтенд и в API всегда будет уходить правильный тип данных (float, boolean или string).
+   */
+  public function getParamAttribute($value)
+  {
+    if ($value === null) {
+      return null;
+    }
+
+    // Получаем тип из родительского атрибута (если связь не загружена, по дефолту считаем строкой)
+    $type = $this->attribute?->option_param_type ?? 'string';
+
+    return match ($type) {
+      'numeric' => (float)$value,
+      'boolean' => filter_var($value, FILTER_VALIDATE_BOOLEAN),
+      default => (string)$value,
+    };
+  }
+
 }

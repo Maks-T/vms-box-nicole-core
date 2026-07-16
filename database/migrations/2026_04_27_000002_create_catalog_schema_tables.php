@@ -105,7 +105,10 @@ return new class extends Migration {
       $table->id();
       $table->string('external_code')->nullable()->index();
       $table->string('code')->unique();
-      $table->string('type');
+      $table->string('type'); // string, numeric, boolean, dictionary, complex
+
+      $table->string('option_param_type')->nullable(); // none, string, numeric, boolean
+
       $table->jsonb('name');
       $table->foreignId('unit_id')->nullable()->constrained()->nullOnDelete();
       $table->foreignId('complex_dictionary_id')->nullable()->constrained('complex_dictionaries')->nullOnDelete();
@@ -123,7 +126,9 @@ return new class extends Migration {
       $table->string('external_code')->nullable()->index();
       $table->foreignId('attribute_id')->constrained()->cascadeOnDelete();
       $table->string('slug')->index();
-      $table->decimal('extra_value', 15, 4)->nullable();
+
+      $table->string('param')->nullable();
+
       $table->jsonb('value');
       $table->jsonb('meta')->nullable();
 

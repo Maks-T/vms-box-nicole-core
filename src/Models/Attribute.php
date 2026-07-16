@@ -33,6 +33,7 @@ class Attribute extends Model
     'external_code',
     'code',
     'type',
+    'option_param_type',
     'name',
     'unit_id',
     'complex_dictionary_id',
