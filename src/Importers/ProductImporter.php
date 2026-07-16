@@ -91,7 +91,7 @@ class ProductImporter implements ImportModuleInterface
 
           'slug' => $item['slug'],
           'name' => $item['name'],
-          'is_active' => true,
+          'is_active' => (bool) ($item['is_active'] ?? true)
         ]
       );
 
@@ -165,7 +165,7 @@ class ProductImporter implements ImportModuleInterface
             'cost_price' => $vData['cost_price'] ?? 0,
             'currency' => $vData['currency'] ?? 'RUB',
             'is_default' => $vData['is_default'] ?? false,
-            'is_active' => true,
+            'is_active' => (bool) ($vData['currency'] ?? true),
             'is_manual_pricing' => (bool) $isManualPricing,
           ]
         );

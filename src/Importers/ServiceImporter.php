@@ -169,7 +169,7 @@ class ServiceImporter implements ImportModuleInterface
 
           'slug' => $item['slug'],
           'name' => $item['name'],
-          'is_active' => true,
+          'is_active' => (bool) ($item['is_active'] ?? true)
         ]
       );
 
