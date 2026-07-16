@@ -35,7 +35,9 @@ class ComplexDictionaryResource extends JsonResource
       foreach ($schema as $field) {
         if (!($field[SchemaKey::IS_PUBLIC] ?? true)) continue;
 
-        $label = is_array($field[SchemaKey::LABEL]) ? ($field[SchemaKey::LABEL][$locale] ?? $field[SchemaKey::KEY]) : ($field[SchemaKey::LABEL] ?? $field[SchemaKey::KEY]);
+        $label = is_array($field[SchemaKey::LABEL])
+          ? ($field[SchemaKey::LABEL][$locale] ?? $field[SchemaKey::KEY])
+          : ($field[SchemaKey::LABEL] ?? $field[SchemaKey::KEY]);
 
         $publicSchema[] = [
           SchemaKey::KEY => $field[SchemaKey::KEY],
@@ -47,7 +49,7 @@ class ComplexDictionaryResource extends JsonResource
 
     return [
       /**
-       * Системный код справочника (напр., price_group).
+       * Системный код умного справочника (напр., price_group).
        * @var string
        */
       'code' => $this->code,
@@ -59,14 +61,14 @@ class ComplexDictionaryResource extends JsonResource
       'name' => (string)$this->name,
 
       /**
-       * Схема полей.
+       * Схема полей справочника.
        * @var array<int, array{key: string, type: string, label: string}>|null
        */
       'schema' => $publicSchema,
 
       /**
        * Элементы справочника.
-       * @var array<int, array{id: int, slug: string, name: string, meta: object}>
+       * @var array<int, array{id: int, key: string, label: string, meta: object}>
        */
       'records' => $this->records
         ->map(function ($record) use ($schema) {
@@ -83,9 +85,30 @@ class ComplexDictionaryResource extends JsonResource
           }
 
           return [
+            /**
+             * Системный ID записи умного справочника.
+             * @var int
+             */
             'id' => $record->id,
-            'slug' => $record->slug ?? ($record->external_code ?? (string)$record->id),
-            'name' => (string)$record->name,
+
+            /**
+             * Системный ключ (слаг) записи справочника.
+             * @var string
+             * @example "acr_12"
+             */
+            'key' => $record->slug ?? ($record->external_code ?? (string)$record->id),
+
+            /**
+             * Отображаемое название записи.
+             * @var string
+             * @example "Акрил 12мм"
+             */
+            'label' => (string)$record->name,
+
+            /**
+             * Дополнительные структурированные метаданные записи согласно схеме.
+             * @var object
+             */
             'meta' => (object)$safeMeta,
           ];
         })

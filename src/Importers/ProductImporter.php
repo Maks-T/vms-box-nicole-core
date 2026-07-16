@@ -86,6 +86,9 @@ class ProductImporter implements ImportModuleInterface
           'category_id' => $categoryId,
           'catalog_type' => $item['catalog_type'] ?? CatalogType::PRODUCT,
           'unit_id' => $unitId,
+
+          'code' => $item['code'] ?? $item['slug'],
+
           'slug' => $item['slug'],
           'name' => $item['name'],
           'is_active' => true,

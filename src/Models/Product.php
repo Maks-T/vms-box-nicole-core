@@ -34,6 +34,7 @@ class Product extends Model implements HasMedia
   protected $fillable = [
     'catalog_type',
     'external_code',
+    'code',
     'product_type_id',
     'category_id',
     'name',

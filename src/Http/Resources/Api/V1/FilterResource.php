@@ -18,9 +18,9 @@ use Nicole\Box\Core\Support\Constants\SettingKey as SK;
  */
 class FilterResource extends JsonResource
 {
+
   public function toArray(Request $request): array
   {
-    // Берём из глобального конфига (он устанавливается в Middleware)
     $channel = config('app.channel', Attribute::CHANNEL_WIDGET);
 
     $options = $this->options
@@ -32,8 +32,31 @@ class FilterResource extends JsonResource
         }
 
         return [
-          'slug' => $opt->slug,
-          'value' => (string) $opt->value,
+          /**
+           * Системный ключ опции фильтра (слаг).
+           * @var string
+           * @example "0,9-mm"
+           */
+          'key' => $opt->slug,
+
+          /**
+           * Текстовое название опции для людей.
+           * @var string
+           * @example "0,9 мм"
+           */
+          'label' => (string) $opt->value,
+
+          /**
+           * Техническое значение параметра для калькуляторов и логики.
+           * @var string|float|bool|null
+           * @example 0.9
+           */
+          'param' => $opt->param,
+
+          /**
+           * Дополнительные метаданные опции.
+           * @var object
+           */
           'meta' => (object) $meta,
         ];
       })
@@ -42,7 +65,6 @@ class FilterResource extends JsonResource
     $allSettings = is_array($this->settings) ? $this->settings : [];
     $chanSettings = $allSettings['channels'][$channel] ?? [];
 
-    // Вырезаем системные флаги
     $publicSettings = Arr::except($chanSettings, [
       SK::IS_PUBLIC,
       SK::IS_SETTINGS_PUBLIC,
@@ -59,18 +81,26 @@ class FilterResource extends JsonResource
       'code' => $this->code,
 
       /**
-       * Название фильтра для отображения в UI.
+       * Название фильтра для отображения в интерфейсе.
        * @var string
        * @example "Цвет"
        */
       'name' => (string) $this->name,
 
       /**
-       * Тип данных (dictionary, boolean, numeric).
+       * Тип данных атрибута (dictionary, boolean, numeric).
        * @var string
        * @example "dictionary"
        */
       'type' => $this->type,
+
+      /**
+       * Ожидаемый тип данных в поле "param" (none, string, numeric, boolean).
+       * Помогает определить формат технического значения для расчетов.
+       * @var string|null
+       * @example "numeric"
+       */
+      'param_type' => $this->option_param_type,
 
       /**
        * Настройки отображения из мета-схемы (filter_type, is_collapsed и т.д.).
@@ -81,9 +111,10 @@ class FilterResource extends JsonResource
 
       /**
        * Доступные опции для фильтрации (возвращается, если type = dictionary).
-       * @var array<int, array{slug: string, value: string, meta: object}>
+       * @var array<int, array{key: string, label: string, param: string|float|bool|null, meta: object}>
        */
       'options' => $options,
     ];
   }
+
 }

@@ -164,6 +164,9 @@ class ServiceImporter implements ImportModuleInterface
           'product_type_id' => $this->serviceTypeId,
           'category_id' => $categoryId,
           'unit_id' => $unitId,
+
+          'code' => $item['code'] ?? $item['slug'],
+
           'slug' => $item['slug'],
           'name' => $item['name'],
           'is_active' => true,

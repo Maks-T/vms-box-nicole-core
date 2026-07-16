@@ -51,8 +51,31 @@ trait MapsEavAttributes
           if ($val->option) {
             $meta = is_array($val->option->meta) ? $val->option->meta : [];
             return [
-              'slug' => $val->option->slug,
-              'name' => (string)$val->option->value,
+              /**
+               * Системный ключ опции (слаг).
+               * @var string
+               * @example "0,9-mm"
+               */
+              'key' => $val->option->slug,
+
+              /**
+               * Текстовое название опции.
+               * @var string
+               * @example "0,9 мм"
+               */
+              'label' => (string)$val->option->value,
+
+              /**
+               * Техническое значение параметра для расчетов.
+               * @var string|float|bool|null
+               * @example 0.9
+               */
+              'param' => $val->option->param,
+
+              /**
+               * Дополнительные медиа-файлы и метаданные опции.
+               * @var object
+               */
               'meta' => (object)[
                 'hex' => $meta['hex'] ?? null,
                 'icon' => $meta['icon'] ?? null,
@@ -61,7 +84,7 @@ trait MapsEavAttributes
             ];
           }
 
-          // Детальный вывод умных справочников (Раскрой, Категории) с метаданными
+          // Детальный вывод умных справочников с метаданными
           if ($val->complexRecord) {
             $payload = $val->complexRecord->meta ?? [];
             $safeMeta = [];
@@ -80,9 +103,25 @@ trait MapsEavAttributes
             }
 
             return [
-              'slug' => $val->complexRecord->external_code ?? (string)$val->complexRecord->id,
-              'name' => (string)$val->complexRecord->name,
-              'meta' => (object) $safeMeta,
+              /**
+               * Системный ключ (слаг) записи умного справочника.
+               * @var string
+               * @example "acr_12"
+               */
+              'key' => $val->complexRecord->slug ?? ($val->complexRecord->external_code ?? (string)$val->complexRecord->id),
+
+              /**
+               * Отображаемое название записи умного справочника.
+               * @var string
+               * @example "Акрил 12мм"
+               */
+              'label' => (string)$val->complexRecord->name,
+
+              /**
+               * Дополнительные структурированные метаданные записи умного справочника из схемы.
+               * @var object
+               */
+              'meta' => (object)$safeMeta,
             ];
           }
 
@@ -97,9 +136,35 @@ trait MapsEavAttributes
         $value = $attribute->is_multiple ? $mappedValues->values()->toArray() : $mappedValues->first();
 
         return [
+          /**
+           * Название характеристики.
+           * @var string
+           */
           'name' => (string)$attribute->name,
+
+          /**
+           * Тип характеристики (string, numeric, boolean, dictionary, complex).
+           * @var string
+           */
           'type' => $attribute->type,
+
+          /**
+           * Ожидаемый тип данных в поле "param" дочерних опций (none, string, numeric, boolean).
+           * @var string|null
+           * @example "numeric"
+           */
+          'param_type' => $attribute->option_param_type,
+
+          /**
+           * Является ли характеристика множественной.
+           * @var bool
+           */
           'is_multiple' => (bool)$attribute->is_multiple,
+
+          /**
+           * Текущее значение или список значений характеристики.
+           * @var mixed
+           */
           'value' => $value,
         ];
       })

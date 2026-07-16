@@ -15,6 +15,8 @@ return new class extends Migration {
       $table->string('catalog_type')->default('product')->index();
       $table->string('external_code')->nullable()->index();
 
+      $table->string('code')->nullable()->unique()->index();
+
       $table->foreignId('product_type_id')->constrained()->cascadeOnDelete();
 
       $table->jsonb('name');
