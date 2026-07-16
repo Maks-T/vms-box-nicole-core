@@ -283,5 +283,9 @@
   "Write manager comments about this client...": "Write manager comments about this client...",
   "Open in Calculator": "Open in Calculator",
   "Official Symbol": "Official Symbol",
-  "Used in printed forms and estimates": "Used in printed forms and estimates"
+  "Used in printed forms and estimates": "Used in printed forms and estimates",
+  "Option Parameter Type": "Option Parameter Type",
+  "Technical numeric parameter for calculations": "Technical numeric parameter for calculations",
+  "Technical boolean flag": "Technical boolean flag",
+  "Technical string parameter (e.g. hex color or slug)": "Technical string parameter (e.g. hex color or slug)"
 }

@@ -8,8 +8,10 @@ use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\ColorPicker;
+use Filament\Forms\Components\KeyValue;
 use Filament\Forms\Components\SpatieMediaLibraryFileUpload;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
@@ -41,6 +43,30 @@ class OptionsRelationManager extends RelationManager
 
   public function form(Schema $schema): Schema
   {
+    /** @var Attribute|null $owner */
+    $owner = $this->getOwnerRecord();
+    $paramType = $owner?->option_param_type;
+
+    $paramField = match ($paramType) {
+      'numeric' => TextInput::make('param')
+        ->label(__('Parameter'))
+        ->numeric()
+        ->nullable()
+        ->helperText(__('Technical numeric parameter for calculations')),
+
+      'boolean' => Toggle::make('param')
+        ->label(__('Parameter'))
+        ->inline(false)
+        ->helperText(__('Technical boolean flag')),
+
+      'string' => TextInput::make('param')
+        ->label(__('Parameter'))
+        ->nullable()
+        ->helperText(__('Technical string parameter (e.g. hex color or slug)')),
+
+      default => null,
+    };
+
     return $schema->components([
       Tabs::make('OptionTabs')
         ->tabs([
@@ -61,18 +87,15 @@ class OptionsRelationManager extends RelationManager
                   ->alphaDash(),
               ]),
 
-              Grid::make(2)->schema([
+              Grid::make(2)->schema(array_filter([
                 TextInput::make('external_code')
                   ->label(__('External Code'))
                   ->nullable()
                   ->helperText(__('Used for widget API mapping')),
 
-                TextInput::make('extra_value')
-                  ->label(__('Extra Value'))
-                  ->numeric()
-                  ->nullable()
-                  ->helperText(__('Formula multiplier (e.g. 240 for 10 days)')),
-              ]),
+                // Выводим динамически типизированное поле параметра [2]
+                $paramField,
+              ])),
             ]),
 
           Tabs\Tab::make(__('Visual Representation'))
@@ -94,6 +117,16 @@ class OptionsRelationManager extends RelationManager
                     ->helperText(__('Uploaded image takes precedence over HEX color')),
                 ])
                 ->columns(2),
+            ]),
+
+          Tabs\Tab::make(__('Additional Metadata'))
+            ->icon('heroicon-o-code-bracket-square')
+            ->schema([
+              KeyValue::make('meta')
+                ->label(__('Metadata'))
+                ->keyLabel(__('Parameter (Key)'))
+                ->valueLabel(__('Value'))
+                ->columnSpanFull(),
             ]),
 
           SalesChannelsTab::make('attribute_option'),
@@ -135,11 +168,10 @@ class OptionsRelationManager extends RelationManager
           ->color('info')
           ->toggleable(),
 
-        TextColumn::make('extra_value')
-          ->label(__('Extra Value'))
-          ->numeric()
+        TextColumn::make('param')
+          ->label(__('Parameter'))
           ->placeholder('—')
-          ->toggleable(isToggledHiddenByDefault: true),
+          ->toggleable(),
       ])
       ->reorderable('sort_order')
       ->defaultSort('sort_order', 'asc')

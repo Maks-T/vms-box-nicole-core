@@ -54,6 +54,19 @@ class AttributeForm
                     ->native(false)
                     ->live(),
 
+                  // ДОБАВИТЬ ЭТО ПОЛЕ:
+                  Select::make('option_param_type')
+                    ->label(__('Option Parameter Type'))
+                    ->options([
+                      'string' => __('String'),
+                      'numeric' => __('Numeric'),
+                      'boolean' => __('Boolean (Toggle)'),
+                    ])
+                    ->nullable()
+                    ->native(false)
+                    ->live()
+                    ->visible(fn (Get $get) => $get('type') === Attribute::TYPE_DICTIONARY),
+
                   Select::make('complex_dictionary_id')
                     ->label(__('Complex Dictionary'))
                     ->relationship('complexDictionary', 'name')
@@ -69,7 +82,7 @@ class AttributeForm
                     ->preload()
                     ->visible(fn(Get $get) => $get('type') === Attribute::TYPE_NUMERIC),
 
-                  
+
                   Toggle::make('is_multiple')
                     ->label(__('Multiple choice'))
                     ->default(false)

@@ -283,5 +283,9 @@
   "Write manager comments about this client...": "Напишите комментарии менеджера об этом клиенте...",
   "Open in Calculator": "Открыть в калькуляторе",
   "Official Symbol": "Официальный символ",
-  "Used in printed forms and estimates": "Используется в печатных формах и сметах"
+  "Used in printed forms and estimates": "Используется в печатных формах и сметах",
+  "Option Parameter Type": "Тип параметра опций",
+  "Technical numeric parameter for calculations": "Техническое числовое значение для расчетов",
+  "Technical boolean flag": "Технический логический флаг",
+  "Technical string parameter (e.g. hex color or slug)": "Техническое строковое значение (например, hex-код или слаг)"
 }
