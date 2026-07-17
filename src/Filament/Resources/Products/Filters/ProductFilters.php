@@ -26,7 +26,9 @@ class ProductFilters
 {
   public static function all(): array
   {
-    $currencySymbol = app(PricingManager::class)->baseCurrency->symbol_native ?? '₽';
+    $pricingManager = app(PricingManager::class);
+    $currencySymbol = $pricingManager->baseCurrency->symbol_native ?? ($pricingManager->baseCurrency->symbol ?? '₽');
+
 
     return [
 

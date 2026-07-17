@@ -51,7 +51,10 @@ class VariantSelect extends Select
 
     $sku = $variant->sku;
     $price = app(PricingManager::class)->getVariantPrice($variant);
-    $formattedPrice = number_format($price, 0, '.', ' ') . ' ₽';
+
+    $pricingManager = app(PricingManager::class);
+    $currencySymbol = $pricingManager->baseCurrency->symbol_native ?? ($pricingManager->baseCurrency->symbol ?? '₽');
+    $formattedPrice = number_format($price, 0, '.', ' ') . ' ' . $currencySymbol;
 
     $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#f3f4f6"/><text x="50" y="54" font-family="sans-serif" font-size="40" font-weight="600" fill="#9ca3af" dominant-baseline="middle" text-anchor="middle">' . mb_strtoupper(mb_substr($productName, 0, 1)) . '</text></svg>';
     $fallbackImage = 'data:image/svg+xml;base64,' . base64_encode($svg);
@@ -66,7 +69,7 @@ class VariantSelect extends Select
                    style='width: 40px; height: 40px; min-width: 40px; border-radius: 6px; object-fit: cover; border: 1px solid rgba(0,0,0,0.1); background-color: #f9fafb;'
                    alt=''
               />
-              <div style='display: flex; flex-direction: column; line-height: 1.2; overflow: hidden;'>
+              <div style='display: flex; align-items: center; gap: 12px; padding: 4px 0; overflow: hidden;'>
                   <span style='font-size: 0.875rem; font-weight: 500; color: inherit; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;'>
                       {$productName} · <span style='color: #6b7280; font-family: monospace;'>{$sku}</span>
                   </span>

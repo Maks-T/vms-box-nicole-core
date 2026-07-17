@@ -13,20 +13,15 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\Indicator;
-
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\HtmlString;
-
 use Nicole\Box\Core\Models\ProductType;
 use Nicole\Box\Core\Models\Category;
-use Nicole\Box\Core\Services\PricingManager;
 
 class ProductVariantFilters
 {
   public static function all(): array
   {
-    $currencySymbol = app(PricingManager::class)->baseCurrency->symbol_native ?? '₽';
-
     return [
 
       Filter::make('category_id')
@@ -60,14 +55,14 @@ class ProductVariantFilters
       Filter::make('advanced_filters')
         ->label(__('Advanced Filters'))
         ->columnSpanFull()
-
+        // Метод динамического расчета активности и вывода бейджей сброса [3.3.1]
         ->indicateUsing(function (array $data): array {
           $indicators = [];
 
           if (!empty($data['product_type_id'])) {
             $count = count($data['product_type_id']);
             $indicators[] = Indicator::make("Типы товаров ({$count})")
-              ->removeField('product_type_id');
+              ->removeField('product_type_id'); // Позволяет сбросить конкретное поле [3.3.2]
           }
 
           if (isset($data['is_active']) && $data['is_active'] !== '') {
@@ -80,14 +75,6 @@ class ProductVariantFilters
             $label = $data['has_images'] === '1' ? 'С изображениями' : 'Без изображений';
             $indicators[] = Indicator::make($label)
               ->removeField('has_images');
-          }
-
-          if (filled($data['price_from']) || filled($data['price_to'])) {
-            $from = $data['price_from'] ?? '0';
-            $to = $data['price_to'] ?? '∞';
-            $indicators[] = Indicator::make("Себестоимость: {$from} - {$to}")
-              ->removeField('price_from')
-              ->removeField('price_to');
           }
 
           if (filled($data['stock_from']) || filled($data['stock_to'])) {
@@ -114,7 +101,6 @@ class ProductVariantFilters
               if (!empty($get('product_type_id'))) $active[] = 'схема типа';
               if ($get('is_active') !== null && $get('is_active') !== '') $active[] = 'статус на сайте';
               if ($get('has_images') !== null && $get('has_images') !== '') $active[] = 'изображения';
-              if ($get('price_from') || $get('price_to')) $active[] = 'себестоимость';
               if ($get('stock_from') || $get('stock_to')) $active[] = 'остаток';
               if ($get('updated_from') || $get('updated_to')) $active[] = 'дата обновления';
 
@@ -166,21 +152,7 @@ class ProductVariantFilters
                 ->live()
                 ->native(false),
 
-              Grid::make(2)
-                ->schema([
-                  TextInput::make('price_from')
-                    ->label(__('Cost Price From') . ' (' . $currencySymbol . ')')
-                    ->numeric()
-                    ->live(onBlur: true)
-                    ->placeholder('0'),
-                  TextInput::make('price_to')
-                    ->label(__('Cost Price To') . ' (' . $currencySymbol . ')')
-                    ->numeric()
-                    ->live(onBlur: true)
-                    ->placeholder('999...'),
-                ])
-                ->columnSpan(1),
-
+              // Остаток (занимает 1 колонку)
               Grid::make(2)
                 ->schema([
                   TextInput::make('stock_from')
@@ -207,7 +179,7 @@ class ProductVariantFilters
                     ->live()
                     ->native(false),
                 ])
-                ->columnSpan(1),
+                ->columnSpan(2),
             ])
         ])
         ->query(function (Builder $query, array $data): Builder {
@@ -227,14 +199,6 @@ class ProductVariantFilters
             ->when(
               $data['has_images'] === '0',
               fn($q) => $q->whereDoesntHave('media')
-            )
-            ->when(
-              filled($data['price_from']),
-              fn($q) => $q->where('cost_price', '>=', $data['price_from'])
-            )
-            ->when(
-              filled($data['price_to']),
-              fn($q) => $q->where('cost_price', '<=', $data['price_to'])
             )
             ->when(
               filled($data['stock_from']),

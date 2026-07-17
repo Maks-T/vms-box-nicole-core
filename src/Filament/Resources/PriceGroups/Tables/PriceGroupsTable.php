@@ -78,7 +78,10 @@ class PriceGroupsTable
           $convertedCost = app(PricingManager::class)->convert($cost, $fromCurrency, $targetCurrency);
           $total = $convertedCost * (1 + $markup / 100);
 
-          $symbol = $type->currency->symbol ?? '₽';
+          $pricingManager = app(PricingManager::class);
+          $symbol = $type->currency->symbol
+            ?? ($pricingManager->baseCurrency->symbol_native ?? ($pricingManager->baseCurrency->symbol ?? '₽'));
+
           return number_format($total, 2, '.', ' ') . ' ' . $symbol;
         })
         ->color('success')

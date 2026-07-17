@@ -36,7 +36,7 @@ class ProductSelect extends Select
           ->where("name->{$locale}", 'ilike', "%{$search}%")
           ->limit(15)
           ->get()
-          ->mapWithKeys(fn ($p) => [$p->id => static::renderProductOption($p)]);
+          ->mapWithKeys(fn($p) => [$p->id => static::renderProductOption($p)]);
       });
   }
 
@@ -49,6 +49,9 @@ class ProductSelect extends Select
     $name = is_string($product->name) ? $product->name : 'Без названия';
     $price = number_format((float)$product->min_price, 0, '.', ' ');
     $initial = mb_strtoupper(mb_substr($name, 0, 1));
+
+    $pricingManager = app(\Nicole\Box\Core\Services\PricingManager::class);
+    $currencySymbol = $pricingManager->baseCurrency->symbol_native ?? ($pricingManager->baseCurrency->symbol ?? '₽');
 
     $svg =
       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#f3f4f6"/><text x="50" y="54" font-family="sans-serif" font-size="40" font-weight="600" fill="#9ca3af" dominant-baseline="middle" text-anchor="middle">' .
@@ -70,7 +73,7 @@ class ProductSelect extends Select
               </span>
               <div style='display: flex; gap: 8px; margin-top: 4px; align-items: center;'>
                    <span style='color: #0284c7; font-weight: 700; font-size: 0.7rem; text-transform: uppercase;'>
-                      от {$price} ₽
+                      от {$price} {$currencySymbol}
                    </span>
                    <span style='color: #6b7280; font-size: 0.7rem; font-family: monospace;'>
                       ID: {$product->id}
@@ -80,4 +83,5 @@ class ProductSelect extends Select
       </div>
     ";
   }
+
 }

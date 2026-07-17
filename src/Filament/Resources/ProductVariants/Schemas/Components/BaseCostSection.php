@@ -50,9 +50,8 @@ class BaseCostSection
           ->hidden(fn(Get $get) => (bool)$get('is_manual_pricing'))
           ->columnSpanFull(),
 
-        Section::make(fn (Get $get) => __('Price Group Reference Information') . (filled($get('price_group_id')) ? ': ' . PriceGroup::find($get('price_group_id'))?->getTranslation('name', app()->getLocale()) : ''))
+        Section::make(fn(Get $get) => __('Price Group Reference Information') . (filled($get('price_group_id')) ? ': ' . PriceGroup::find($get('price_group_id'))?->getTranslation('name', app()->getLocale()) : ''))
           ->visible(fn(Get $get) => !(bool)$get('is_manual_pricing') && filled($get('price_group_id')))
-
           ->collapsible()
           ->columnSpanFull()
           ->schema(function (Get $get) {
@@ -89,12 +88,13 @@ class BaseCostSection
               $convertedCost = $pricingManager->convert($cost, $purchaseCurrency, $targetCurrency);
               $finalPrice = $convertedCost * (1 + $markup / 100);
 
-              $symbol = $type->currency->symbol ?? '₽';
+              $symbol = $type->currency->symbol
+                ?? ($pricingManager->baseCurrency->symbol_native ?? ($pricingManager->baseCurrency->symbol ?? '₽'));
+
               $formattedPrice = number_format($finalPrice, 2, '.', ' ') . ' ' . $symbol;
 
               $schema[] = TextEntry::make("price_type_{$type->slug}")
-                ->label((string) $type->getTranslation('name', app()->getLocale()))
-
+                ->label((string)$type->getTranslation('name', app()->getLocale()))
                 ->state("{$formattedPrice} (" . __('Markup') . ": {$markup}%)")
                 ->columnSpan(1);
             }

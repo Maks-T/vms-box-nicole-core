@@ -29,7 +29,13 @@ class OrderForm
                   ->numeric()
                   ->required()
                   ->disabled()
-                  ->prefix(fn ($record) => $record?->currency ?? '₽'),
+                  ->prefix(function ($record) {
+                    if ($record?->currency) {
+                      return $record->currency;
+                    }
+                    $pricingManager = app(\Nicole\Box\Core\Services\PricingManager::class);
+                    return $pricingManager->baseCurrency->symbol_native ?? ($pricingManager->baseCurrency->symbol ?? '₽');
+                  }),
 
                 Select::make('status_id')
                   ->label(__('Status'))
