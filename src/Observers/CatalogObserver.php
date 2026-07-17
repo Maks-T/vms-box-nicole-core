@@ -10,11 +10,13 @@ class CatalogObserver
 {
   public function saved(): void
   {
+    Cache::forget('vms_dashboard_stats');
     Cache::increment('catalog_version');
   }
 
   public function deleted(): void
   {
+    Cache::forget('vms_dashboard_stats');
     Cache::increment('catalog_version');
   }
 }

@@ -7,19 +7,17 @@ namespace Nicole\Box\Core\Filament\Resources\ProductVariants\Tables;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
-use Filament\Forms\Components\TextInput;
-use Filament\Schemas\Components\Grid;
-use Filament\Support\Enums\Width;
-use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Filters\Filter;
-use Filament\Tables\Filters\SelectFilter;
-use Filament\Tables\Filters\TernaryFilter;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\TextInputColumn;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
+use Filament\Tables\Enums\FiltersLayout;
+use Filament\Notifications\Notification;
+use Nicole\Box\Core\Filament\Resources\ProductVariants\Filters\ProductVariantFilters;
 use Nicole\Box\Core\Models\ProductVariant;
 use Nicole\Box\Core\Services\PricingManager;
+use Nicole\Box\Core\Filament\Helpers\TableHelper;
 
 class ProductVariantsTable
 {
@@ -27,6 +25,8 @@ class ProductVariantsTable
   {
     return $table
       ->columns([
+        TableHelper::idColumn(),
+
         ImageColumn::make('preview_image')
           ->label(__('Photo'))
           ->state(function (ProductVariant $record) {
@@ -34,30 +34,109 @@ class ProductVariantsTable
             if (!$url) {
               return null;
             }
-
             return str_starts_with($url, 'http') ? $url : url($url);
           })
-          ->circular(),
+          ->circular()
+          ->toggleable(),
 
         TextColumn::make('sku')
           ->label(__('SKU'))
           ->searchable(['sku', 'external_code'])
           ->sortable()
           ->copyable()
-          ->fontFamily('mono'),
+          ->fontFamily('mono')
+          ->toggleable(),
 
         TextColumn::make('product.name')
           ->label(__('Parent Product'))
+          ->state(function (ProductVariant $record) {
+            return $record->product?->getTranslation('name', app()->getLocale())
+              ?? ($record->product?->getTranslation('name', 'ru') ?? '-');
+          })
+          ->url(fn(ProductVariant $record) => $record->product_id
+            ? \Nicole\Box\Core\Filament\Resources\Products\ProductResource::getUrl('edit', ['record' => $record->product_id])
+            : null
+          )
+          ->openUrlInNewTab()
           ->searchable()
           ->sortable()
           ->wrap()
           ->toggleable(),
 
-        TextColumn::make('cost_price')
-          ->label(__('Cost Price'))
-          ->state(fn(ProductVariant $record) => app(PricingManager::class)->getVariantCostPrice($record))
-          ->money(fn(ProductVariant $record) => app(PricingManager::class)->getVariantCostCurrency($record))
+        TableHelper::externalCodeColumn(),
+
+        TextColumn::make('price_group.name')
+          ->label(__('Price Group'))
+          ->state(fn(ProductVariant $record) => $record->priceGroup?->getTranslation('name', app()->getLocale())
+            ?? ($record->priceGroup?->getTranslation('name', 'ru') ?? '-')
+          )
+          ->badge()
+          ->color('gray')
+          ->toggleable(isToggledHiddenByDefault: true)
           ->sortable(),
+
+        TextInputColumn::make('cost_price')
+          ->label(__('Cost Price'))
+          ->type('number')
+          ->suffix(fn(ProductVariant $record) => ' ' . app(PricingManager::class)->getVariantCostCurrency($record))
+          ->disabled(fn(ProductVariant $record) => !$record->is_manual_pricing)
+          ->updateStateUsing(function (ProductVariant $record, $state) {
+            try {
+              $record->update(['cost_price' => (float)$state]);
+              $record->product?->refreshMinPrice();
+              Notification::make()
+                ->success()
+                ->title('Себестоимость сохранена')
+                ->send();
+            } catch (\Throwable $e) {
+              Notification::make()
+                ->danger()
+                ->title('Ошибка изменения себестоимости')
+                ->body($e->getMessage())
+                ->persistent()
+                ->send();
+            }
+          })
+          ->width('150px')
+          ->toggleable()
+          ->alignEnd(),
+
+        TextInputColumn::make('markup_percent')
+          ->label(__('Markup (%)'))
+          ->state(function (ProductVariant $record) {
+            $retailPriceTypeId = \Nicole\Box\Core\Models\PriceType::where('slug', 'retail')->value('id') ?? 1;
+            $priceRecord = $record->prices()->where('price_type_id', $retailPriceTypeId)->first();
+            return $priceRecord?->markup_percent ?? 0.0;
+          })
+          ->disabled(fn(ProductVariant $record) => !$record->is_manual_pricing)
+          ->updateStateUsing(function (ProductVariant $record, $state) {
+            try {
+              $retailPriceTypeId = \Nicole\Box\Core\Models\PriceType::where('slug', 'retail')->value('id') ?? 1;
+              \Nicole\Box\Core\Models\ProductVariantPrice::updateOrCreate(
+                ['product_variant_id' => $record->id, 'price_type_id' => $retailPriceTypeId],
+                ['markup_percent' => (float)$state]
+              );
+              $record->product?->refreshMinPrice();
+              Notification::make()
+                ->success()
+                ->title('Процент наценки сохранен')
+                ->send();
+            } catch (\Throwable $e) {
+              Notification::make()
+                ->danger()
+                ->title('Ошибка изменения наценки')
+                ->body($e->getMessage())
+                ->persistent()
+                ->send();
+            }
+          })
+          ->type('number')
+          ->suffix('%')
+          ->width('130px')
+          ->toggleable()
+          ->alignEnd(),
+
+        TableHelper::codeColumn('currency'),
 
         TextColumn::make('retail_price')
           ->label(__('Retail Price'))
@@ -67,7 +146,8 @@ class ProductVariantsTable
             )->getVariantPrice($record),
           )
           ->money(fn() => app(PricingManager::class)->baseCurrency->code)
-          ->sortable(false),
+          ->sortable(false)
+          ->toggleable(isToggledHiddenByDefault: true),
 
         TextColumn::make('stock')
           ->label(__('Stock'))
@@ -96,108 +176,27 @@ class ProductVariantsTable
           ->boolean()
           ->toggleable(),
 
-        IconColumn::make('is_active')
-          ->label(__('Status'))
+        IconColumn::make('is_manual_pricing')
+          ->label(__('Manual Pricing'))
           ->boolean()
-          ->toggleable(),
+          ->toggleable(isToggledHiddenByDefault: true),
+
+        TableHelper::statusColumn(), // Активность (Toggle)
+
+        TableHelper::sortOrderColumn(),
+        TableHelper::createdAtColumn(),
+        TableHelper::updatedAtColumn(),
       ])
-      ->filtersFormWidth(Width::TwoExtraLarge)
-      ->filtersFormColumns(2)
-      ->filters([
-        // Фильтр по категории родительского товара
-        SelectFilter::make('category_id')
-          ->label(__('Category'))
-          ->relationship('product.category', 'name')
-          ->multiple()
-          ->searchable()
-          ->preload(),
-
-        // Фильтр по типу родительского товара
-        SelectFilter::make('product_type_id')
-          ->label(__('Product Type Schema'))
-          ->relationship('product.type', 'name')
-          ->multiple()
-          ->searchable()
-          ->preload(),
-
-        // Главный вариант или второстепенный
-        TernaryFilter::make('is_default')
-          ->label(__('Variant Type'))
-          ->placeholder(__('All'))
-          ->trueLabel(__('Default only'))
-          ->falseLabel(__('Secondary only'))
-          ->native(false),
-
-        // Активность
-        TernaryFilter::make('is_active')->label(__('Is active'))->native(false),
-
-        // Наличие фото
-        TernaryFilter::make('has_images')
-          ->label(__('Images Presence'))
-          ->placeholder(__('All'))
-          ->trueLabel(__('With photos only'))
-          ->falseLabel(__('Without photos'))
-          ->queries(
-            true: fn(Builder $query) => $query->whereHas('media'),
-            false: fn(Builder $query) => $query->whereDoesntHave('media'),
-            blank: fn(Builder $query) => $query,
-          )
-          ->native(false),
-
-        // Диапазон цен
-        Filter::make('cost_price')
-          ->columnSpanFull()
-          ->schema([
-            Grid::make(2)->schema([
-              TextInput::make('price_from')
-                ->label(__('Cost Price From'))
-                ->numeric(),
-              TextInput::make('price_to')
-                ->label(__('Cost Price To'))
-                ->numeric(),
-            ]),
-          ])
-          ->query(function (Builder $query, array $data): Builder {
-            return $query
-              ->when(
-                filled($data['price_from']),
-                fn($q) => $q->where('cost_price', '>=', $data['price_from']),
-              )
-              ->when(
-                filled($data['price_to']),
-                fn($q) => $q->where('cost_price', '<=', $data['price_to']),
-              );
-          }),
-
-        // Диапазон остатков
-        Filter::make('stock')
-          ->columnSpanFull()
-          ->schema([
-            Grid::make(2)->schema([
-              TextInput::make('stock_from')->label(__('Stock From'))->numeric(),
-              TextInput::make('stock_to')->label(__('Stock To'))->numeric(),
-            ]),
-          ])
-          ->query(function (Builder $query, array $data): Builder {
-            return $query
-              ->when(
-                filled($data['stock_from']),
-                fn($q) => $q->where('stock', '>=', $data['stock_from']),
-              )
-              ->when(
-                filled($data['stock_to']),
-                fn($q) => $q->where('stock', '<=', $data['stock_to']),
-              );
-          }),
-      ])
+      ->columnManagerColumns(2)
+      ->filtersLayout(FiltersLayout::AboveContent)
+      ->filtersFormColumns(3)
+      ->filters(ProductVariantFilters::all())
       ->recordActions([EditAction::make()])
       ->toolbarActions([BulkActionGroup::make([DeleteBulkAction::make()])])
       ->defaultSort('updated_at', 'desc')
-      // сохранять примененные фильтры в сессии
       ->persistFiltersInSession()
-      // сохранять строку глобального поиска таблицы
       ->persistSearchInSession()
-      // сохранять выбранную сортировку колонок
       ->persistSortInSession();
   }
+
 }
