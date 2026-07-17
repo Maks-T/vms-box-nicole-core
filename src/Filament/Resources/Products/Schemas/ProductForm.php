@@ -24,6 +24,8 @@ use Nicole\Box\Core\Models\Product;
 use Nicole\Box\Core\Models\ProductFamily;
 use Nicole\Box\Core\Models\ProductType;
 use Nicole\Box\Core\Support\Constants\CatalogType;
+use Njxqlus\Filament\Components\Forms\RelationManager as NjxqlusRelationManager;
+use Nicole\Box\Core\Filament\Resources\Products\RelationManagers\VariantsRelationManager;
 
 class ProductForm
 {
@@ -34,6 +36,15 @@ class ProductForm
     return $schema->components([
       Tabs::make('ProductData')
         ->tabs([
+
+          Tabs\Tab::make(__('Product Variants'))
+            ->icon('heroicon-o-tag')
+            ->schema([
+              NjxqlusRelationManager::make()
+                ->manager(VariantsRelationManager::class)
+                ->lazy(false)
+            ]),
+
 
           Tabs\Tab::make(__('General Information'))
             ->icon('heroicon-o-information-circle')

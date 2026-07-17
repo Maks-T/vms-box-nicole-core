@@ -58,9 +58,9 @@ class ProductVariantForm
     return $schema->components([
       Tabs::make('VariantData')
         ->tabs([
+          PricingTab::make(),
           IdentityTab::make(),
           TechnicalSpecsTab::make(),
-          PricingTab::make(),
           InventoryTab::make(),
           MediaGalleryTab::make(),
           SalesChannelsTab::make('product_variant'),

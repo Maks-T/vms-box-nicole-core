@@ -157,6 +157,7 @@ class ServiceImporter implements ImportModuleInterface
       $unitId = $this->cachedUnits[$item['unit']] ?? null;
       if (!$categoryId) continue;
 
+      // Создаем или обновляем базовую услугу
       $product = Product::updateOrCreate(
         ['external_code' => "prod_srv_{$item['slug']}"],
         [
@@ -169,10 +170,9 @@ class ServiceImporter implements ImportModuleInterface
 
           'slug' => $item['slug'],
           'name' => $item['name'],
-          'is_active' => (bool) ($item['is_active'] ?? true)
+          'is_active' => (bool) ($item['is_active'] ?? true), // Поддержка динамической активности
         ]
       );
-
 
       ProductAttributeValue::where('attributable_id', $product->id)->where('attributable_type', $product->getMorphClass())->delete();
 
@@ -205,24 +205,30 @@ class ServiceImporter implements ImportModuleInterface
         }
       }
 
+      // Импортируем цены с поддержкой валюты и процента наценки
+      foreach ($item['prices'] ?? [] as $materialCode => $priceData) {
+        // Извлекаем финансовую структуру из нового формата JSON [2]
+        $costPrice = (float)($priceData['cost_price'] ?? 0.0);
+        $currency = $priceData['currency'] ?? 'BYN';
+        $markup = (float)($priceData['markup'] ?? 0.0);
 
-      foreach ($item['prices'] ?? [] as $materialCode => $price) {
         $variant = ProductVariant::updateOrCreate(
           ['external_code' => "sku_srv_{$item['slug']}_{$materialCode}"],
           [
             'product_id' => $product->id,
             'sku' => "{$item['slug']}_{$materialCode}",
-            'cost_price' => (float)$price,
-            'currency' => 'RUB',
+            'cost_price' => $costPrice,
+            'currency' => $currency,
             'is_default' => false,
             'is_active' => true,
             'is_manual_pricing' => true,
           ]
         );
 
+        // Сохраняем исходную наценку из боевой базы [2]
         ProductVariantPrice::updateOrCreate(
           ['product_variant_id' => $variant->id, 'price_type_id' => $this->retailPriceId],
-          ['markup_percent' => 0.0000000000]
+          ['markup_percent' => $markup]
         );
 
         $optMaterial = AttributeOption::firstOrCreate(

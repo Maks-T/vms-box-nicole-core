@@ -103,8 +103,20 @@ class ProductsTable
           ->trueLabel(__('With photos only'))
           ->falseLabel(__('Without photos'))
           ->queries(
-            true: fn (Builder $query) => $query->whereHas('media'),
-            false: fn (Builder $query) => $query->whereDoesntHave('media'),
+          // Ищем товары со своими фото или товары, у которых есть активные вариации с фото
+            true: fn (Builder $query) => $query->where(function ($q) {
+              $q->whereHas('media')
+                ->orWhereHas('variants', function ($vQ) {
+                  $vQ->where('is_active', true)
+                    ->whereHas('media');
+                });
+            }),
+            // Ищем товары без своих фото и у которых нет активных вариаций с фото
+            false: fn (Builder $query) => $query->whereDoesntHave('media')
+              ->whereDoesntHave('variants', function ($vQ) {
+                $vQ->where('is_active', true)
+                  ->whereHas('media');
+              }),
             blank: fn (Builder $query) => $query,
           )
           ->native(false),
