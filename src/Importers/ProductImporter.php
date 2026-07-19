@@ -162,6 +162,7 @@ class ProductImporter implements ImportModuleInterface
             'product_id' => $product->id,
             'price_group_id' => $priceGroupId,
             'sku' => $vData['sku'],
+            'name' => $vData['name'] ?? null,
             'cost_price' => $vData['cost_price'] ?? 0,
             'currency' => $vData['currency'] ?? 'RUB',
             'is_default' => $vData['is_default'] ?? false,

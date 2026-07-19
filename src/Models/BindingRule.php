@@ -21,11 +21,13 @@ class BindingRule extends Model
     'external_code',
     'pipeline_id',
     'name',
+    'role',
     'parent_type',
     'parent_id',
     'child_type',
     'child_id',
     'conditions',
+    'static_meta',
     'quantity_formula',
     'is_required',
     'sort_order',
@@ -35,6 +37,7 @@ class BindingRule extends Model
   {
     return [
       'conditions' => 'array',
+      'static_meta' => 'array',
       'is_required' => 'boolean',
       'sort_order' => 'integer',
     ];
@@ -59,5 +62,4 @@ class BindingRule extends Model
   {
     return \Nicole\Box\Core\Database\Factories\BindingRuleFactory::new();
   }
-
 }

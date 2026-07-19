@@ -79,10 +79,14 @@ class PipelineImporter implements ImportModuleInterface
         $parentType = $this->resolveMorphClass($ruleData['parent_type_key'] ?? '');
         $parentId = $this->resolveModelId($ruleData['parent_type_key'] ?? '', $ruleData['parent_external_code'] ?? '');
 
-        $childType = $this->resolveMorphClass($ruleData['child_type_key'] ?? '');
-        $childId = $this->resolveModelId($ruleData['child_type_key'] ?? '', $ruleData['child_external_code'] ?? '');
+        $childType = null;
+        $childId = null;
+        if (!empty($ruleData['child_type_key']) && !empty($ruleData['child_external_code'])) {
+          $childType = $this->resolveMorphClass($ruleData['child_type_key']);
+          $childId = $this->resolveModelId($ruleData['child_type_key'], $ruleData['child_external_code']);
+        }
 
-        if (!$parentId || !$childId) {
+        if (!$parentId) {
           $rulesBar->advance();
           continue;
         }
@@ -94,11 +98,13 @@ class PipelineImporter implements ImportModuleInterface
           [
             'pipeline_id' => $pipelineId,
             'name' => $ruleData['name'] ?? 'BOM Link',
+            'role' => $ruleData['role'] ?? null,
             'parent_type' => $parentType,
             'parent_id' => $parentId,
             'child_type' => $childType,
             'child_id' => $childId,
             'conditions' => $translatedConditions,
+            'static_meta' => $ruleData['static_meta'] ?? null,
             'quantity_formula' => (string)($ruleData['quantity_formula'] ?? '1'),
             'is_required' => (bool)($ruleData['is_required'] ?? false),
             'sort_order' => (int)($ruleData['sort_order'] ?? 0),

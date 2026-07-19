@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use Nicole\Box\Core\Http\Controllers\Api\V1\BootstrapController;
+use Nicole\Box\Core\Http\Controllers\Api\V1\CalculatorConfigController;
 use Nicole\Box\Core\Http\Controllers\Api\V1\CalculatorWebhookController;
 use Nicole\Box\Core\Http\Controllers\Api\V1\FilterController;
 use Nicole\Box\Core\Http\Controllers\Api\V1\OrderController;
@@ -26,3 +27,6 @@ Route::get('/orders/{code}/html', [PdfExportController::class, 'viewHtml']);
 Route::put('/orders/{code}', [OrderController::class, 'update']);
 
 Route::post('webhooks/calculator/deploy', [CalculatorWebhookController::class, 'deploy']);
+
+
+Route::get('/calculator/config/{baseVariantId}', [CalculatorConfigController::class, 'show']);
