@@ -13,4 +13,7 @@ class CacheKey
   // Ключи и теги кэша каталога
   public const string CATALOG_VERSION = 'catalog_version'; // для кэша на диске
   public const string CATALOG_TAG = 'catalog'; //для кэша в оперативке redis
+
+  // Кэш схем пайплайнов
+  public const string PIPELINE_SCHEMA_PREFIX = 'pipeline_schema_';
 }

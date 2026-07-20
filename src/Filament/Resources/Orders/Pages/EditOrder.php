@@ -36,8 +36,7 @@ class EditOrder extends EditRecord
         ->url(fn (): string => "/api/v1/orders/{$this->record->code}/pdf")
         ->openUrlInNewTab(),
 
-      DeleteAction::make(),
-    ];
+     ];
 
   }
 }

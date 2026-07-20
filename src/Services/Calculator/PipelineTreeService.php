@@ -8,6 +8,7 @@ use Nicole\Box\Core\Models\Pipeline;
 use Nicole\Box\Core\Models\BindingRule;
 use Nicole\Box\Core\Models\ProductVariant;
 use Nicole\Box\Core\Models\Product;
+use Nicole\Box\Core\Support\Constants\CacheKey;
 
 class PipelineTreeService
 {
@@ -18,17 +19,49 @@ class PipelineTreeService
     self::$schemas[$pipelineCode] = $schema;
   }
 
-  /**
-   * метод получения зарегистрированной схемы пайплайна
-   */
-  public function getPipelineSchema(string $pipelineCode): array
+  public function getPipelineSchema(string $pipelineCode, ?Pipeline $pipeline = null): array
   {
-    return self::$schemas[$pipelineCode] ?? [];
+    if (isset(self::$schemas[$pipelineCode])) {
+      return self::$schemas[$pipelineCode];
+    }
+
+    $rawSchema = $pipeline
+      ? ($pipeline->schema ?? [])
+      : cache()->remember(CacheKey::PIPELINE_SCHEMA_PREFIX . $pipelineCode, 3600, function () use ($pipelineCode) {
+        return Pipeline::where('code', $pipelineCode)->value('schema') ?? [];
+      });
+
+    if (empty($rawSchema) || !is_array($rawSchema) || !isset($rawSchema[collect($rawSchema)->keys()->first()][0])) {
+      return $rawSchema;
+    }
+
+    $associativeSchema = [];
+    foreach ($rawSchema as $parentType => $slots) {
+      if (!is_array($slots)) {
+        continue;
+      }
+
+      foreach ($slots as $slot) {
+        $roleCode = $slot['role_code'] ?? null;
+        if (!$roleCode) {
+          continue;
+        }
+
+        $associativeSchema[$parentType][$roleCode] = [
+          'label_key' => $slot['label_key'] ?? '',
+          'type_code' => $slot['type_code'] ?? '',
+          'is_required' => (bool)($slot['is_required'] ?? false),
+          'is_multiple' => (bool)($slot['is_multiple'] ?? false),
+        ];
+      }
+    }
+
+    return $associativeSchema;
   }
 
   public function analyzeTree(int $rootVariantId, string $pipelineCode): ?array
   {
-    $pipeline = Pipeline::where('external_code', $pipelineCode)->first();
+    $pipeline = Pipeline::where('code', $pipelineCode)->first();
     if (!$pipeline) {
       return null;
     }
@@ -38,13 +71,10 @@ class PipelineTreeService
       return null;
     }
 
-    return $this->analyzeNode($rootVariant, $pipeline->id);
+    return $this->analyzeNode($rootVariant, $pipeline);
   }
 
-  /**
-   * Рекурсивный обход узлов с защитой от бесконечных циклов в БД
-   */
-  private function analyzeNode(ProductVariant $variant, int $pipelineId, array $visited = []): array
+  private function analyzeNode(ProductVariant $variant, Pipeline $pipeline, array $visited = []): array
   {
     $currentLocale = app()->getLocale();
 
@@ -59,13 +89,11 @@ class PipelineTreeService
       ];
     }
 
-    // Помечаем текущую ноду как пройденную
     $visited[] = $variant->id;
 
-    $pipelineCode = Pipeline::where('id', $pipelineId)->value('external_code') ?? 'default';
-    $pipelineSchema = self::$schemas[$pipelineCode] ?? [];
+    $pipelineCode = $pipeline->code ?? 'default';
+    $pipelineSchema = $this->getPipelineSchema($pipelineCode, $pipeline);
 
-    // Динамически определяем код типа текущего продукта (например: pillar, baluster, rail)
     $parentTypeCode = $variant->product?->type?->code ?? 'general';
     $schema = $pipelineSchema[$parentTypeCode] ?? [];
 
@@ -82,16 +110,14 @@ class PipelineTreeService
         ->get();
 
       if ($isMultiple) {
-        // Обработка множественного слота (Группировка в папку)
         $children = [];
         foreach ($rules as $rule) {
           $child = $rule->child;
           $isFilled = !is_null($child) || !empty($rule->static_meta);
 
           $childrenTrees = [];
-          // Передаем массив посещенных узлов дальше по цепочке рекурсии
           if ($isFilled && $rule->child_type === (new ProductVariant())->getMorphClass()) {
-            $childrenTrees = $this->analyzeNode($child, $pipelineId, $visited);
+            $childrenTrees = $this->analyzeNode($child, $pipeline, $visited);
           }
 
           $childData = null;
@@ -110,10 +136,14 @@ class PipelineTreeService
             'label' => $rule->name ?: $slotMeta['label_key'],
             'is_required' => false,
             'is_filled' => $isFilled,
-            'is_valid' => true,
+            'is_valid' => $childrenTrees['is_valid'] ?? true,
+            'variant_id' => $childData['id'] ?? '',
+            'variant_name' => $childData['name'] ?? '',
+            'product_slug' => $childData['slug'] ?? null,
+            'image_url' => $childData['image_url'] ?? null,
             'child' => $childData,
             'static_meta' => $rule->static_meta,
-            'children' => $childrenTrees['fields'] ?? [],
+            'fields' => $childrenTrees['fields'] ?? [],
           ];
         }
 
@@ -124,6 +154,7 @@ class PipelineTreeService
 
         $fieldReports[] = [
           'is_multiple' => true,
+          'type' => 'multiselect',
           'field_code' => $roleCode,
           'label' => $slotMeta['label_key'],
           'is_required' => (bool)$slotMeta['is_required'],
@@ -134,15 +165,15 @@ class PipelineTreeService
             'parent_id' => $variant->id,
             'parent_type' => $variant->getMorphClass(),
             'role' => $roleCode,
-            'pipeline_id' => $pipelineId,
+            'pipeline_id' => $pipeline->id,
             'type_code' => $slotMeta['type_code'],
           ]
         ];
 
       } else {
-        // Обработка одиночного слота
         $rule = $rules->first();
         $isFilled = $rule && (!is_null($rule->child) || !empty($rule->static_meta));
+        $isScalar = $rule && empty($rule->child_type);
 
         if ($slotMeta['is_required'] && !$isFilled) {
           $isNodeValid = false;
@@ -150,16 +181,21 @@ class PipelineTreeService
 
         if ($rule) {
           $child = $rule->child;
-          $childrenTrees = [];
-          // Передаем массив посещенных узлов дальше по цепочке рекурсии
+          $childrenTrees = null;
+
           if ($isFilled && $rule->child_type === (new ProductVariant())->getMorphClass()) {
-            $childrenTrees = $this->analyzeNode($child, $pipelineId, $visited);
+            $childrenTrees = $this->analyzeNode($child, $pipeline, $visited);
+
+            $childrenTrees['rule_id'] = $rule->id;
+
             if (isset($childrenTrees['is_valid']) && !$childrenTrees['is_valid']) {
               $isNodeValid = false;
             }
           }
 
           $childData = null;
+          $value = null;
+
           if ($child) {
             $childData = [
               'id' => $child->id,
@@ -168,9 +204,10 @@ class PipelineTreeService
               'image_url' => $child->getPreviewUrl() ?: $child->product?->getPreviewUrl(),
             ];
           } elseif (!empty($rule->static_meta)) {
+            $value = head($rule->static_meta);
             $childData = [
               'id' => '',
-              'name' => head($rule->static_meta),
+              'name' => $value,
               'slug' => null,
               'image_url' => null,
             ];
@@ -183,9 +220,10 @@ class PipelineTreeService
             'is_required' => (bool)$slotMeta['is_required'],
             'is_filled' => $isFilled,
             'is_valid' => !$slotMeta['is_required'] || $isFilled,
+            'value' => $value,
             'child' => $childData,
             'static_meta' => $rule->static_meta,
-            'children' => $childrenTrees['fields'] ?? [],
+            'children' => ($childrenTrees && !$isScalar) ? [$childrenTrees] : [],
           ];
         } else {
           $fieldReports[] = [
@@ -195,6 +233,7 @@ class PipelineTreeService
             'is_required' => (bool)$slotMeta['is_required'],
             'is_filled' => false,
             'is_valid' => !$slotMeta['is_required'],
+            'value' => null,
             'child' => null,
             'static_meta' => null,
             'children' => [],
@@ -202,7 +241,7 @@ class PipelineTreeService
               'parent_id' => $variant->id,
               'parent_type' => $variant->getMorphClass(),
               'role' => $roleCode,
-              'pipeline_id' => $pipelineId,
+              'pipeline_id' => $pipeline->id,
               'type_code' => $slotMeta['type_code'],
             ]
           ];
@@ -217,6 +256,7 @@ class PipelineTreeService
       'is_valid' => $isNodeValid,
       'fields' => $fieldReports,
       'product_slug' => $variant->product?->slug,
+      'pipeline_industry' => $pipeline->industry,
     ];
   }
 

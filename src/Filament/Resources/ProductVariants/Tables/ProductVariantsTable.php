@@ -78,6 +78,7 @@ class ProductVariantsTable
         TextInputColumn::make('cost_price')
           ->label(__('Cost Price'))
           ->type('number')
+          ->step('any')
           ->suffix(fn(ProductVariant $record) => ' ' . app(PricingManager::class)->getVariantCostCurrency($record))
           ->disabled(fn(ProductVariant $record) => !$record->is_manual_pricing)
           ->updateStateUsing(function (ProductVariant $record, $state) {
@@ -131,6 +132,7 @@ class ProductVariantsTable
             }
           })
           ->type('number')
+          ->step('any')
           ->suffix('%')
           ->width('130px')
           ->toggleable()
@@ -181,7 +183,7 @@ class ProductVariantsTable
           ->boolean()
           ->toggleable(isToggledHiddenByDefault: true),
 
-        TableHelper::statusColumn(), // Активность (Toggle)
+        TableHelper::statusColumn(),
 
         TableHelper::sortOrderColumn(),
         TableHelper::createdAtColumn(),
@@ -198,5 +200,4 @@ class ProductVariantsTable
       ->persistSearchInSession()
       ->persistSortInSession();
   }
-
 }

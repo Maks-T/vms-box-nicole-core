@@ -74,7 +74,7 @@ class LinkedItemsTab
                             ->required()
                             ->columnSpan(2),
 
-                        Hidden::make('child_type')->default(Product::class),
+                      Hidden::make('child_type')->default(new Product()->getMorphClass()),
                     ])
                     ->columns(12)
                     ->defaultItems(0),

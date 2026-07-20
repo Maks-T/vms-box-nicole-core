@@ -12,11 +12,16 @@ return new class extends Migration {
   {
     Schema::create('pipelines', function (Blueprint $table) {
       $table->id();
+
+      $table->string('code')->unique()->index();
+      $table->string('slug')->nullable()->unique()->index();
       $table->string('external_code')->nullable()->index();
+
       $table->jsonb('name');
       $table->string('industry')->index();
       $table->jsonb('description')->nullable();
       $table->jsonb('ui_state')->nullable();
+      $table->jsonb('schema')->nullable();
       $table->boolean('is_active')->default(true);
       $table->integer('sort_order')->default(0);
       $table->settings();
@@ -53,11 +58,9 @@ return new class extends Migration {
     DB::statement('CREATE INDEX idx_binding_rules_static_meta ON binding_rules USING GIN (static_meta);');
   }
 
-
   public function down(): void
   {
     Schema::dropIfExists('binding_rules');
     Schema::dropIfExists('pipelines');
   }
-
 };

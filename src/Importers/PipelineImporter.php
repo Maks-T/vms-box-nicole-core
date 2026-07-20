@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nicole\Box\Core\Importers;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Str;
 use Nicole\Box\Core\Importers\Contracts\ImportModuleInterface;
 use Nicole\Box\Core\Models\AttributeOption;
 use Nicole\Box\Core\Models\BindingRule;
@@ -49,11 +50,14 @@ class PipelineImporter implements ImportModuleInterface
       $translatedUiState = $this->translateUiStateRecursive($uiState);
 
       $pipeline = Pipeline::updateOrCreate(
-        ['external_code' => $plData['external_code']],
+        ['code' => $plData['code']],
         [
+          'slug' => $plData['slug'] ?? Str::slug($plData['code']),
+          'external_code' => $plData['external_code'] ?? null,
           'name' => $plData['name'],
           'industry' => $plData['industry'] ?? 'default',
           'ui_state' => $translatedUiState,
+          'schema' => $plData['schema'] ?? null,
           'is_active' => (bool)($plData['is_active'] ?? true),
           'sort_order' => (int)($plData['sort_order'] ?? 0),
         ]
