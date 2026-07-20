@@ -24,14 +24,14 @@ class PipelineForm
 {
   public static function configure(Schema $schema): Schema
   {
-    return $schema->components(function (Get $get, ?Model $record) {
+    return $schema->components(function (?Model $record) {
       $pipelineCode = $record instanceof Pipeline ? $record->code : '';
 
       $pipelineSchema = app(PipelineTreeService::class)->getPipelineSchema((string)$pipelineCode, $record);
       $parentTypeCodes = collect($pipelineSchema)->keys()->toArray();
 
       if (empty($parentTypeCodes)) {
-        $industry = $get('industry');
+        $industry = $record instanceof Pipeline ? $record->industry : null;
         $parentTypeCodes = $industry
           ? ProductType::whereHas('family', fn($q) => $q->where('code', $industry))->pluck('code')->toArray()
           : [];
@@ -48,21 +48,17 @@ class PipelineForm
           ->icon('heroicon-o-folder-open')
           ->collapsed()
           ->schema([
-
             Repeater::make("schema.{$parentTypeCode}")
               ->hiddenLabel()
               ->schema([
-
                 TextInput::make('role_code')
                   ->label(__('Role Code'))
                   ->required()
                   ->alphaDash()
                   ->datalist(function (Get $get) {
                     $industry = $get('../../../industry') ?? '';
-
                     return array_keys(PipelineRoleResolver::getOptions($industry));
-                  })
-                  ->live(),
+                  }),
 
                 TextInput::make('label_key')
                   ->label(__('Label Key (e.g. Start Clip)'))
@@ -77,12 +73,10 @@ class PipelineForm
                   ->afterStateUpdated(function ($state, callable $set, Get $get) {
                     if ($state) {
                       $industry = $get('../../../industry') ?? '';
-
                       $defaultType = PipelineRoleResolver::getDefaultProductType($industry, $state);
                       if ($defaultType && blank($get('type_code'))) {
                         $set('type_code', $defaultType);
                       }
-
                       if (blank($get('label_key'))) {
                         $set('label_key', PipelineRoleResolver::getLabel($industry, $state));
                       }

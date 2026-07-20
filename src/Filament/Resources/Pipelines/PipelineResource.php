@@ -30,17 +30,17 @@ class PipelineResource extends Resource
 
   public static function getNavigationGroup(): ?string
   {
-    return __('Calculator Settings');
+    return __('Configurations');
   }
 
   public static function getModelLabel(): string
   {
-    return __('Pipeline');
+    return __('Pipeline Schema');
   }
 
   public static function getPluralModelLabel(): string
   {
-    return __('Pipelines');
+    return __('Pipeline Schemas');
   }
 
   public static function form(Schema $schema): Schema
