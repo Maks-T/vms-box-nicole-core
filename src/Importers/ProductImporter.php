@@ -62,7 +62,7 @@ class ProductImporter implements ImportModuleInterface
 
       $unitCode = $item['unit_code'] ?? 'pcs';
       if (!isset($this->mapUnits[$unitCode])) {
-        $unitName = match($unitCode) {
+        $unitName = match ($unitCode) {
           'm' => ['ru' => 'м.п.', 'en' => 'rm'],
           'set' => ['ru' => 'компл.', 'en' => 'set'],
           'srv' => ['ru' => 'усл.', 'en' => 'srv'],
@@ -91,7 +91,8 @@ class ProductImporter implements ImportModuleInterface
 
           'slug' => $item['slug'],
           'name' => $item['name'],
-          'is_active' => (bool) ($item['is_active'] ?? true)
+          'description' => $item['description'] ?? null,
+          'is_active' => (bool)($item['is_active'] ?? true)
         ]
       );
 
@@ -99,12 +100,12 @@ class ProductImporter implements ImportModuleInterface
       $this->attachMedia($product, $item['preview_picture'] ?? null, $item['detail_picture'] ?? null, $command);
       $this->saveEav($product, $item['eav'] ?? []);
 
-      // динамическая генерация анонса из характеристик (если отсутствует в файле импорта)
+      // Динамическая генерация анонса из характеристик
       if (empty($item['short_description'])) {
         $shortDesc = [];
         $locales = config('nicole.locales', ['ru', 'en']);
 
-        // получаем сохраненные EAV-характеристики этого продукта
+        // Получаем сохраненные EAV-характеристики этого продукта
         $eavValues = ProductAttributeValue::where('attributable_id', $product->id)
           ->where('attributable_type', $product->getMorphClass())
           ->with(['attribute.unit', 'option', 'complexRecord'])
@@ -117,7 +118,6 @@ class ProductImporter implements ImportModuleInterface
             $attrName = $val->attribute->getTranslation('name', $locale);
             $valString = null;
 
-            // Вычисляем текстовое значение в зависимости от типа EAV-атрибута
             if ($val->option) {
               $valString = $val->option->getTranslation('value', $locale);
             } elseif ($val->complexRecord) {
@@ -147,7 +147,6 @@ class ProductImporter implements ImportModuleInterface
           $shortDesc[$locale] = implode(', ', $specs);
         }
 
-        // Обновляем напрямую, минуя триггеры observers
         $product->updateQuietly(['short_description' => $shortDesc]);
       }
 
@@ -171,27 +170,37 @@ class ProductImporter implements ImportModuleInterface
           ]
         );
 
-        if (isset($vData['price'])) {
-          $price = (float) $vData['price'];
-          $costPrice = (float) ($vData['cost_price'] ?? 0);
+        $costPrice = (float)($vData['cost_price'] ?? 0.0);
+        $markup = null;
 
+        if (isset($vData['markup'])) {
+          $markup = (float)$vData['markup'];
+        } elseif (isset($vData['markup_percent'])) {
+          $markup = (float)$vData['markup_percent'];
+        } elseif (isset($vData['price'])) {
+          $price = (float)$vData['price'];
           if ($costPrice > 0) {
             $markup = (($price / $costPrice) - 1) * 100;
           } else {
+            $costPrice = $price;
             $variant->updateQuietly(['cost_price' => $price, 'is_manual_pricing' => true]);
             $markup = 0.0;
           }
+        } elseif ($costPrice > 0) {
+          $markup = 0.0;
+        }
 
+        if ($markup !== null) {
           \Nicole\Box\Core\Models\ProductVariantPrice::updateOrCreate(
             ['product_variant_id' => $variant->id, 'price_type_id' => $retailPriceId],
-            ['markup_percent' => (float) $markup]
+            ['markup_percent' => (float)$markup]
           );
         }
 
         $this->attachMedia($variant, $vData['preview_picture'] ?? null, $vData['detail_picture'] ?? null, $command);
         $this->saveEav($variant, $vData['eav'] ?? []);
 
-        $stockQty = (float) ($vData['stock'] ?? 0);
+        $stockQty = (float)($vData['stock'] ?? 0);
         if ($stockQty > 0) {
           \Nicole\Box\Core\Models\Stock::updateOrCreate(
             ['product_variant_id' => $variant->id, 'warehouse_id' => $mainWarehouse->id],
@@ -244,11 +253,11 @@ class ProductImporter implements ImportModuleInterface
         } elseif ($attribute->type === Attribute::TYPE_COMPLEX) {
           $recordData['value_complex_id'] = $this->mapComplexRecords[$value] ?? null;
         } elseif ($attribute->type === Attribute::TYPE_BOOLEAN) {
-          $recordData['value_boolean'] = (bool) $value;
+          $recordData['value_boolean'] = (bool)$value;
         } elseif ($attribute->type === Attribute::TYPE_NUMERIC) {
-          $recordData['value_numeric'] = (float) $value;
+          $recordData['value_numeric'] = (float)$value;
         } else {
-          $recordData['value_string'] = (string) $value;
+          $recordData['value_string'] = (string)$value;
         }
 
         if (array_filter(array_slice($recordData, 3)) !== []) {
@@ -312,5 +321,4 @@ class ProductImporter implements ImportModuleInterface
     $this->mapUnits = Unit::pluck('id', 'slug')->toArray();
     $this->mapAttributes = Attribute::all()->keyBy('code')->all();
   }
-
 }
