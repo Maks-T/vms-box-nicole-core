@@ -23,7 +23,7 @@ class OrderResource extends Resource
   // Меняем иконку на торговую сумку/корзину
   protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedShoppingBag;
 
-  protected static ?string $recordTitleAttribute = 'id';
+  protected static ?string $recordTitleAttribute = 'code';
 
   protected static ?string $slug = 'orders';
 

@@ -18,7 +18,13 @@ class OrdersTable
     return $table
       ->columns([
         TextColumn::make('id')
+          ->label('ID')
+          ->sortable()
+          ->weight('bold'),
+
+        TextColumn::make('code')
           ->label('№')
+          ->searchable()
           ->sortable()
           ->weight('bold'),
 

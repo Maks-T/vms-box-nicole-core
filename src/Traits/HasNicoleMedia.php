@@ -10,24 +10,7 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 /**
  * Трейт HasNicoleMedia управляет загрузкой, конвертацией и получением
- * ссылок на изображения для сущностей каталога (базовых товаров и модификаций SKU).
- *
- * --------------------------------------------------
- * Бизнес-правила каскада и наследования изображений:
- *
- * 1. Модификация товара (ProductVariant / SKU):
- *    - Возвращает только собственные медиафайлы.
- *    - Если у модификации нет собственного фото - метод возвращает null.
- *    - [ПРАВИЛО]: Прямое наследование сверху вниз (от базового товара к SKU)
- *      отсутствует, так как у разных SKU одного товара (например, разные цвета)
- *      не должно быть одинакового фото, если они не заданы явно.
- *
- * 2. Базовый товар (Product):
- *    - В первую очередь возвращает собственное превью/детальное фото.
- *    - Если собственного фото нет, а связь 'variants' загружена в память (Eager Loaded),
- *      товар автоматически наследует фото снизу вверх - берет изображение
- *      у своей активной дефолтной модификации (SKU).
- * --------------------------------------------------
+ * ссылок на изображения для сущностей каталога.
  */
 trait HasNicoleMedia
 {
@@ -35,7 +18,6 @@ trait HasNicoleMedia
 
   /**
    * Регистрация автоматических конвертаций изображений.
-   * Оптимизирует исходные изображения под WebP формат для быстрого рендеринга в UI.
    */
   public function registerMediaConversions(?Media $media = null): void
   {
@@ -53,7 +35,7 @@ trait HasNicoleMedia
   }
 
   /**
-   * Получить URL превью-изображения (Thumbnail).
+   * Получить URL превью-изображения динамически по зарегистрированным коллекциям
    *
    * @return string|null Возвращает абсолютный URL изображения или null
    */
@@ -61,25 +43,37 @@ trait HasNicoleMedia
   {
     $url = null;
 
-    // Шаг 1: Проверяем собственные медиафайлы текущей модели (будь то продукт или вариант)
-    if ($this->hasMedia('preview')) {
-      $url = $this->getFirstMediaUrl('preview');
-    } elseif ($this->hasMedia('main')) {
-      $url = $this->getFirstMediaUrl('main', 'preview') ?:
-        $this->getFirstMediaUrl('main');
+    $collections = collect($this->getRegisteredMediaCollections())
+      ->sortBy(function ($collection) {
+        return match ($collection->name) {
+          'preview' => 1,
+          'main'    => 2,
+          'drawing' => 3,
+          default   => 10,
+        };
+      });
+
+    foreach ($collections as $collection) {
+      if ($this->hasMedia($collection->name)) {
+        $url = $this->getFirstMediaUrl($collection->name, 'preview')
+          ?: $this->getFirstMediaUrl($collection->name);
+
+        if ($url) {
+          break;
+        }
+      }
     }
 
-    // Шаг 2: Каскад снизу вверх (только для Базового товара).
-    // Если у товара нет фото, и связь вариантов загружена в память - берем фото у дефолтного SKU.
+    // Каскад снизу вверх (только для Базового товара)
     if (empty($url) && $this->relationLoaded('variants')) {
       /** @var \Nicole\Box\Core\Models\ProductVariant|null $defaultVariant */
       $defaultVariant = $this->variants
         ->where('is_active', true)
-        ->sortByDesc('is_default') // Фильтруем коллекцию в оперативной памяти PHP
+        ->sortByDesc('is_default')
         ->first();
 
       if ($defaultVariant) {
-        return $defaultVariant->getPreviewUrl(); // Вызываем получение у варианта напрямую
+        return $defaultVariant->getPreviewUrl();
       }
     }
 
@@ -87,12 +81,11 @@ trait HasNicoleMedia
       return null;
     }
 
-    // Формируем корректный абсолютный URL с учетом домена приложения
     return rtrim(config('app.url'), '/') . parse_url($url, PHP_URL_PATH);
   }
 
   /**
-   * Получить URL детального изображения (High-Res).
+   * Получить URL детального изображения динамически по зарегистрированным коллекциям.
    *
    * @return string|null Возвращает абсолютный URL детального изображения или null
    */
@@ -100,22 +93,35 @@ trait HasNicoleMedia
   {
     $url = null;
 
-    // Шаг 1: Проверяем собственные детальные медиафайлы текущей модели
-    if ($this->hasMedia('main')) {
-      $url = $this->getFirstMediaUrl('main');
+    $collections = collect($this->getRegisteredMediaCollections())
+      ->sortBy(function ($collection) {
+        return match ($collection->name) {
+          'main'    => 1,
+          'drawing' => 2,
+          default   => 10,
+        };
+      });
+
+    foreach ($collections as $collection) {
+      if ($this->hasMedia($collection->name)) {
+        $url = $this->getFirstMediaUrl($collection->name);
+
+        if ($url) {
+          break;
+        }
+      }
     }
 
-    // Шаг 2: Каскад снизу вверх (только для Базового товара).
-    // Если у товара нет фото, и связь вариантов загружена - берем детальное фото у дефолтного SKU.
+    // Каскад снизу вверх (только для Базового товара)
     if (empty($url) && $this->relationLoaded('variants')) {
       /** @var \Nicole\Box\Core\Models\ProductVariant|null $defaultVariant */
       $defaultVariant = $this->variants
         ->where('is_active', true)
-        ->sortByDesc('is_default') // Фильтруем коллекцию в оперативной памяти PHP
+        ->sortByDesc('is_default')
         ->first();
 
       if ($defaultVariant) {
-        return $defaultVariant->getDetailUrl(); // Вызываем получение у варианта напрямую
+        return $defaultVariant->getDetailUrl();
       }
     }
 
@@ -123,7 +129,6 @@ trait HasNicoleMedia
       return null;
     }
 
-    // Формируем корректный абсолютный URL с учетом домена приложения
     return rtrim(config('app.url'), '/') . parse_url($url, PHP_URL_PATH);
   }
 

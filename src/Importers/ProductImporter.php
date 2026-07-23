@@ -152,8 +152,9 @@ class ProductImporter implements ImportModuleInterface
 
       // Импортируем модификации (SKU) товара
       foreach ($item['variants'] ?? [] as $vData) {
-        $isManualPricing = $vData['is_manual_pricing'] ?? isset($vData['price']);
+
         $priceGroupId = $this->mapPriceGroups[$vData['price_group_external_code'] ?? ''] ?? null;
+        $isManualPricing = $vData['is_manual_pricing'] ?? (isset($vData['price']) || !$priceGroupId);
 
         $variant = ProductVariant::updateOrCreate(
           ['external_code' => $vData['external_code']],
@@ -165,7 +166,7 @@ class ProductImporter implements ImportModuleInterface
             'cost_price' => $vData['cost_price'] ?? 0,
             'currency' => $vData['currency'] ?? 'RUB',
             'is_default' => $vData['is_default'] ?? false,
-            'is_active' => (bool) ($vData['currency'] ?? true),
+            'is_active' => (bool) ($vData['is_active'] ?? true),
             'is_manual_pricing' => (bool) $isManualPricing,
           ]
         );

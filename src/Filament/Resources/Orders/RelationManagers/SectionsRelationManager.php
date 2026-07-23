@@ -9,6 +9,7 @@ use Filament\Actions\DeleteAction;
 use Filament\Forms\Components\TextInput;
 
 use Filament\Infolists\Components\KeyValueEntry;
+use Filament\Infolists\Components\ViewEntry;
 use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Components\Grid;
@@ -23,6 +24,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\HtmlString;
+use Nicole\Box\Core\Filament\Resources\Orders\Schemas\Tabs\EstimateTab;
 use Nicole\Box\Core\Models\OrderSection;
 
 use Njxqlus\Filament\Components\Forms\RelationManager as NjxqlusRelationManager;
@@ -118,46 +120,7 @@ class SectionsRelationManager extends RelationManager
             Tabs::make('SectionDetails')
               ->tabs([
 
-                Tab::make(__('Estimate'))
-                  ->icon('heroicon-o-currency-dollar')
-                  ->schema(function (OrderSection $record) {
-                    $sections = [];
-
-                    foreach ($record->estimate ?? [] as $index => $item) {
-                      $cells = $item['value'] ?? [];
-
-                      // Пропускаем шапку таблицы
-                      if ($index === 0 && count($cells) > 0 && str_contains(strtolower($cells[0]), 'название')) {
-                        continue;
-                      }
-
-                      $name = $cells[0] ?? '-';
-                      $cellCount = count($cells);
-                      $totalVal = $cellCount === 2 ? ($cells[1] ?? '') : ($cells[4] ?? ($cells[1] ?? ''));
-
-                      $childrenData = [];
-                      foreach ($item['children'] ?? [] as $child) {
-                        $childCells = $child['value'] ?? [];
-                        if (count($childCells) >= 2) {
-                          $childrenData[$childCells[0]] = $childCells[1];
-                        }
-                      }
-
-                      $sections[] = Section::make("{$name} - {$totalVal}")
-                        ->collapsible()
-                        ->collapsed(false)
-                        ->schema([
-                          KeyValueEntry::make("estimate_section_{$index}")
-                            ->hiddenLabel()
-                            ->state($childrenData)
-                            ->keyLabel(__('Parameter'))
-                            ->valueLabel(__('Value'))
-                            ->columnSpanFull()
-                        ]);
-                    }
-
-                    return $sections;
-                  }),
+                EstimateTab::make(),
 
                 Tab::make(__('Technical Specifications'))
                   ->icon('heroicon-o-list-bullet')
