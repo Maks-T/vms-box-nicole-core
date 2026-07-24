@@ -10,9 +10,11 @@ use Nicole\Box\Core\Importers\Contracts\ImportModuleInterface;
 use Nicole\Box\Core\Models\AttributeOption;
 use Nicole\Box\Core\Models\BindingRule;
 use Nicole\Box\Core\Models\Pipeline;
+use Nicole\Box\Core\Models\PipelineScenario;
 use Nicole\Box\Core\Models\Product;
 use Nicole\Box\Core\Models\ProductType;
 use Nicole\Box\Core\Models\ProductVariant;
+use Nicole\Box\Core\Services\Pipelines\BindingRuleCompilerService;
 
 class PipelineImporter implements ImportModuleInterface
 {
@@ -22,7 +24,7 @@ class PipelineImporter implements ImportModuleInterface
 
   public function getName(): string
   {
-    return 'Universal Pipelines & Logical Binding Rules (Core)';
+    return 'Universal Pipelines & Scenarios (Core)';
   }
 
   public function run(array $settings, array $data, Command $command): void
@@ -30,6 +32,7 @@ class PipelineImporter implements ImportModuleInterface
     $command->info('Старт импорта универсальных правил подбора ( Nicole Core )...');
 
     $pipelinesData = $data['pipelines'] ?? [];
+    $scenariosData = $data['pipeline_scenarios'] ?? [];
     $rulesData = $data['binding_rules'] ?? [];
 
     if (empty($pipelinesData)) {
@@ -39,39 +42,80 @@ class PipelineImporter implements ImportModuleInterface
 
     $this->loadSystemMaps();
 
-    // Импортируем пайплайны
+    // 1. Импорт контейнеров пайплайнов
     $command->line('Импорт контейнеров пайплайнов...');
     $pipelineIdMap = [];
     $bar = $command->getOutput()->createProgressBar(count($pipelinesData));
 
     foreach ($pipelinesData as $plData) {
-      $uiState = $plData['ui_state'] ?? [];
-
-      $translatedUiState = $this->translateUiStateRecursive($uiState);
-
       $pipeline = Pipeline::updateOrCreate(
         ['code' => $plData['code']],
         [
           'slug' => $plData['slug'] ?? Str::slug($plData['code']),
           'external_code' => $plData['external_code'] ?? null,
           'name' => $plData['name'],
-          'industry' => $plData['industry'] ?? 'default',
-          'ui_state' => $translatedUiState,
+          'description' => $plData['description'] ?? null,
           'schema' => $plData['schema'] ?? null,
           'is_active' => (bool)($plData['is_active'] ?? true),
           'sort_order' => (int)($plData['sort_order'] ?? 0),
         ]
       );
 
-      $pipelineIdMap[$plData['external_code']] = $pipeline->id;
+      if (!empty($plData['external_code'])) {
+        $pipelineIdMap[$plData['external_code']] = $pipeline->id;
+      }
       $bar->advance();
     }
     $bar->finish();
     $command->newLine();
 
-    // Импортируем правила связей (binding_rules)
+    // 2. Импорт сценариев подбора (pipeline_scenarios)
+    if (!empty($scenariosData)) {
+      $command->line('Импорт сценариев и автоматическая компиляция правил...');
+      $scenariosBar = $command->getOutput()->createProgressBar(count($scenariosData));
+      $compiler = app(BindingRuleCompilerService::class);
+
+      foreach ($scenariosData as $scenData) {
+        $pipelineId = null;
+        if (!empty($scenData['pipeline_external_code'])) {
+          $pipelineId = $pipelineIdMap[$scenData['pipeline_external_code']] ?? null;
+        }
+
+        if (!$pipelineId) {
+          $scenariosBar->advance();
+          continue;
+        }
+
+        $uiState = $scenData['ui_state'] ?? [];
+        $translatedUiState = $this->translateUiStateRecursive($uiState);
+
+        $scenario = PipelineScenario::updateOrCreate(
+          [
+            'pipeline_id' => $pipelineId,
+            'code' => $scenData['code'],
+          ],
+          [
+            'external_code' => $scenData['external_code'] ?? null,
+            'name' => $scenData['name'],
+            'description' => $scenData['description'] ?? null,
+            'ui_state' => $translatedUiState,
+            'is_active' => (bool)($scenData['is_active'] ?? true),
+            'sort_order' => (int)($scenData['sort_order'] ?? 0),
+          ]
+        );
+
+        // Автоматическая компиляция ui_state в плоские binding_rules
+        $compiler->compile($scenario);
+
+        $scenariosBar->advance();
+      }
+      $scenariosBar->finish();
+      $command->newLine();
+    }
+
+    // 3. Импорт статических правил связей (binding_rules)
     if (!empty($rulesData)) {
-      $command->line('Импорт правил связей и формул количества...');
+      $command->line('Импорт статических правил связей...');
       $rulesBar = $command->getOutput()->createProgressBar(count($rulesData));
 
       foreach ($rulesData as $ruleData) {
@@ -131,9 +175,6 @@ class PipelineImporter implements ImportModuleInterface
     $this->typeMap = ProductType::pluck('id', 'external_code')->toArray();
   }
 
-  /**
-   * Рекурсивный, независимый от ключей транслятор UUID -> DB ID
-   */
   protected function translateUiStateRecursive(mixed $obj): mixed
   {
     if (is_array($obj)) {

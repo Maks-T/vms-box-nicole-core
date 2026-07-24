@@ -9,11 +9,13 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Nicole\Box\Core\Traits\HasExternalCode;
+use Spatie\Translatable\HasTranslations;
 
 class PipelineScenario extends Model
 {
   use HasExternalCode;
   use HasFactory;
+  use HasTranslations;
 
   protected $table = 'pipeline_scenarios';
 
