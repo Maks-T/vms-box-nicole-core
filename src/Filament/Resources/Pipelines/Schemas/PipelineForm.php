@@ -47,6 +47,38 @@ class PipelineForm
           ->schema([
             Repeater::make("schema.{$parentTypeCode}")
               ->hiddenLabel()
+
+              ->formatStateUsing(function ($state) {
+                if (!is_array($state)) {
+                  return [];
+                }
+
+                $formatted = [];
+                foreach ($state as $key => $item) {
+                  if (is_array($item)) {
+                    if (is_string($key) && empty($item['role_code'])) {
+                      $item['role_code'] = $key;
+                    }
+                    $formatted[] = $item;
+                  }
+                }
+                return $formatted;
+              })
+
+              ->dehydrateStateUsing(function ($state) {
+                if (!is_array($state)) {
+                  return [];
+                }
+
+                $result = [];
+                foreach ($state as $item) {
+                  $roleCode = $item['role_code'] ?? null;
+                  if ($roleCode) {
+                    $result[$roleCode] = $item;
+                  }
+                }
+                return $result;
+              })
               ->schema([
                 TextInput::make('role_code')
                   ->label(__('Role Code'))
