@@ -33,13 +33,13 @@
             </div>
 
             @if($report)
-                @include('valerie-wpc::filament.clusters.pipelines.components.tree-status-panel', [
+                @include('nicole-core::filament.clusters.pipelines.components.tree-status-panel', [
                     'variantId' => $base_variant_id,
                     'isValid' => $report['is_valid'] ?? false,
                     'isRootActive' => $isRootActive,
                 ])
 
-                @include('valerie-wpc::filament.clusters.pipelines.components.tree-node', [
+                @include('nicole-core::filament.clusters.pipelines.components.tree-node', [
                     'node' => $report,
                     'isRoot' => true,
                 ])
