@@ -53,6 +53,18 @@ class PipelineChainsPage extends Page implements HasForms, HasTable, HasActions
         return __('Chains & Visual Tree');
     }
 
+    public static function getBreadcrumb(): string
+    {
+        return __('Chains & Visual Tree');
+    }
+
+    public function getBreadcrumbs(): array
+    {
+        return [
+            '' => __('Configurations'),
+        ];
+    }
+
     public function getTitle(): string
     {
         return __('Chains & Visual Tree');

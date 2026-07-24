@@ -314,6 +314,11 @@
   "Assigned attribute schemas": "Схемы технических параметров",
   "Dynamic value multidimensional tables": "Многомерные матрицы наценок",
   "Base purchase cost margins": "Группы базовой себестоимости",
-  "Pipeline Schema": "Схема калькулятора",
-  "Pipeline Schemas": "Схемы калькуляторов"
+  "Pipeline Schema": "Схема конфигурации",
+  "Pipeline Schemas": "Схемы конфигураций",
+  "Chains & Visual Tree": "Цепочки и визуальное дерево",
+  "CCTV Scenarios": "Сценарии видеонаблюдения",
+  "CCTV Scenario": "Сценарий видеонаблюдения",
+  "Configurations & Chains": "Конфигуратор связей",
+  "Configurations": "Конфигурации"
 }

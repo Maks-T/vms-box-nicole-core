@@ -1,14 +1,20 @@
 <x-filament-panels::page>
+    {{-- Нативный стилизованный селект Filament (input.wrapper + input.select) --}}
     <div class="mb-6 bg-white dark:bg-gray-900 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800">
-        <div class="flex items-center gap-4">
-            <label class="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <label class="text-sm font-semibold text-gray-700 dark:text-gray-200 whitespace-nowrap">
                 {{ __('Select Configuration Pipeline:') }}
             </label>
-            <select wire:model.live="pipeline_code" class="fi-select-input block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm focus:border-primary-500 focus:ring-primary-500 text-sm">
-                @foreach(\Nicole\Box\Core\Models\Pipeline::where('is_active', true)->orderBy('sort_order')->get() as $pl)
-                    <option value="{{ $pl->code }}">{{ $pl->name }} ({{ $pl->code }})</option>
-                @endforeach
-            </select>
+
+            <div class="w-full sm:max-w-md">
+                <x-filament::input.wrapper prefix-icon="heroicon-m-adjustments-horizontal">
+                    <x-filament::input.select wire:model.live="pipeline_code">
+                        @foreach(\Nicole\Box\Core\Models\Pipeline::where('is_active', true)->orderBy('sort_order')->get() as $pl)
+                            <option value="{{ $pl->code }}">{{ $pl->name }} ({{ $pl->code }})</option>
+                        @endforeach
+                    </x-filament::input.select>
+                </x-filament::input.wrapper>
+            </div>
         </div>
     </div>
 

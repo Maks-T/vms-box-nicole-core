@@ -10,6 +10,13 @@ class ListPipelines extends ListRecords
 {
     protected static string $resource = PipelineResource::class;
 
+    public function getBreadcrumbs(): array
+    {
+        return [
+            '' => __('Configurations'),
+        ];
+    }
+
     protected function getHeaderActions(): array
     {
         return [

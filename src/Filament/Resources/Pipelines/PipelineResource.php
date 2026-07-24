@@ -21,7 +21,6 @@ class PipelineResource extends Resource
 {
     protected static ?string $model = Pipeline::class;
 
-    // Привязка к общему Кластеру для верхних вкладок
     protected static ?string $cluster = PipelineCluster::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedAdjustmentsHorizontal;
@@ -33,6 +32,11 @@ class PipelineResource extends Resource
     protected static ?int $navigationSort = 1;
 
     public static function getNavigationLabel(): string
+    {
+        return __('Pipeline Schemas');
+    }
+
+    public static function getBreadcrumb(): string
     {
         return __('Pipeline Schemas');
     }
