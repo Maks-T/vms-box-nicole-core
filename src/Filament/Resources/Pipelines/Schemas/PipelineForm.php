@@ -18,7 +18,7 @@ use Nicole\Box\Core\Filament\Forms\Tabs\SalesChannelsTab;
 use Nicole\Box\Core\Models\Pipeline;
 use Nicole\Box\Core\Models\ProductType;
 use Nicole\Box\Core\Services\Calculator\PipelineTreeService;
-use Nicole\Box\Core\Support\Calculator\PipelineRoleResolver;
+use Nicole\Box\Core\Support\Pipelines\PipelineRoleResolver;
 
 class PipelineForm
 {
@@ -31,10 +31,7 @@ class PipelineForm
       $parentTypeCodes = collect($pipelineSchema)->keys()->toArray();
 
       if (empty($parentTypeCodes)) {
-        $industry = $record instanceof Pipeline ? $record->industry : null;
-        $parentTypeCodes = $industry
-          ? ProductType::whereHas('family', fn($q) => $q->where('code', $industry))->pluck('code')->toArray()
-          : [];
+        $parentTypeCodes = ProductType::pluck('code')->toArray();
       }
 
       $sections = [];
@@ -55,9 +52,8 @@ class PipelineForm
                   ->label(__('Role Code'))
                   ->required()
                   ->alphaDash()
-                  ->datalist(function (Get $get) {
-                    $industry = $get('../../../industry') ?? '';
-                    return array_keys(PipelineRoleResolver::getOptions($industry));
+                  ->datalist(function () {
+                    return array_keys(PipelineRoleResolver::getOptions());
                   }),
 
                 TextInput::make('label_key')
@@ -72,13 +68,12 @@ class PipelineForm
                   ->live()
                   ->afterStateUpdated(function ($state, callable $set, Get $get) {
                     if ($state) {
-                      $industry = $get('../../../industry') ?? '';
-                      $defaultType = PipelineRoleResolver::getDefaultProductType($industry, $state);
+                      $defaultType = PipelineRoleResolver::getDefaultProductType($state);
                       if ($defaultType && blank($get('type_code'))) {
                         $set('type_code', $defaultType);
                       }
                       if (blank($get('label_key'))) {
-                        $set('label_key', PipelineRoleResolver::getLabel($industry, $state));
+                        $set('label_key', PipelineRoleResolver::getLabel($state));
                       }
                     }
                   }),
@@ -129,12 +124,6 @@ class PipelineForm
                       ->alphaDash()
                       ->helperText(__('Used for clean URLs (SEO)')),
 
-                    TextInput::make('industry')
-                      ->label(__('Industry'))
-                      ->required()
-                      ->live()
-                      ->maxLength(50),
-
                     TextInput::make('sort_order')
                       ->label(__('Sort Order'))
                       ->numeric()
@@ -162,5 +151,4 @@ class PipelineForm
       ];
     });
   }
-
 }

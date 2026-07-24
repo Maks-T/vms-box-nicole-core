@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration {
   public function up(): void
   {
+
     Schema::create('pipelines', function (Blueprint $table) {
       $table->id();
 
@@ -18,22 +19,40 @@ return new class extends Migration {
       $table->string('external_code')->nullable()->index();
 
       $table->jsonb('name');
-      $table->string('industry')->index();
       $table->jsonb('description')->nullable();
-      $table->jsonb('ui_state')->nullable();
-      $table->jsonb('schema')->nullable();
+      $table->jsonb('schema')->nullable(); // Мета-схема ролей/слотов
       $table->boolean('is_active')->default(true);
       $table->integer('sort_order')->default(0);
+
       $table->settings();
+
       $table->timestamps();
+    });
+
+    Schema::create('pipeline_scenarios', function (Blueprint $table) {
+      $table->id();
+      $table->foreignId('pipeline_id')->constrained('pipelines')->cascadeOnDelete();
+
+      $table->string('code')->index();
+      $table->string('external_code')->nullable()->index();
+
+      $table->jsonb('name');
+      $table->jsonb('description')->nullable();
+      $table->jsonb('ui_state')->nullable(); // Поля формы в админке
+      $table->boolean('is_active')->default(true);
+      $table->integer('sort_order')->default(0);
+      $table->timestamps();
+
+      $table->unique(['pipeline_id', 'code'], 'idx_pipeline_scenario_code');
     });
 
     Schema::create('binding_rules', function (Blueprint $table) {
       $table->id();
       $table->string('external_code')->nullable()->index();
       $table->foreignId('pipeline_id')->nullable()->constrained('pipelines')->cascadeOnDelete();
-      $table->string('name')->nullable();
+      $table->foreignId('scenario_id')->nullable()->constrained('pipeline_scenarios')->nullOnDelete();
 
+      $table->string('name')->nullable();
       $table->string('role')->nullable()->index();
 
       $table->string('parent_type');
@@ -54,6 +73,7 @@ return new class extends Migration {
       $table->index('role', 'idx_binding_rules_role');
     });
 
+    DB::statement('CREATE INDEX idx_pipeline_scenarios_ui_state ON pipeline_scenarios USING GIN (ui_state);');
     DB::statement('CREATE INDEX idx_binding_rules_conditions ON binding_rules USING GIN (conditions);');
     DB::statement('CREATE INDEX idx_binding_rules_static_meta ON binding_rules USING GIN (static_meta);');
   }
@@ -61,6 +81,7 @@ return new class extends Migration {
   public function down(): void
   {
     Schema::dropIfExists('binding_rules');
+    Schema::dropIfExists('pipeline_scenarios');
     Schema::dropIfExists('pipelines');
   }
 };

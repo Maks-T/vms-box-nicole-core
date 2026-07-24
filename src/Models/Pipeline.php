@@ -4,14 +4,18 @@ declare(strict_types=1);
 
 namespace Nicole\Box\Core\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Nicole\Box\Core\Support\Constants\CacheKey;
 use Nicole\Box\Core\Traits\HasExternalCode;
 use Nicole\Box\Core\Traits\HasSettings;
 use Spatie\Translatable\HasTranslations;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 
+/**
+ * @mixin \Illuminate\Database\Eloquent\Builder
+ * @mixin \Eloquent
+ */
 class Pipeline extends Model
 {
   use HasExternalCode;
@@ -19,30 +23,30 @@ class Pipeline extends Model
   use HasTranslations;
   use HasFactory;
 
+  protected $table = 'pipelines';
+
+  public array $translatable = ['name', 'description'];
+
   protected $fillable = [
     'code',
     'slug',
     'external_code',
     'name',
-    'industry',
     'description',
-    'ui_state',
     'schema',
+    'ui_state',
     'is_active',
     'sort_order',
+    'settings',
   ];
 
-  public array $translatable = ['name', 'description'];
-
-  protected function casts(): array
-  {
-    return [
-      'ui_state' => 'array',
-      'schema' => 'array',
-      'is_active' => 'boolean',
-      'sort_order' => 'integer',
-    ];
-  }
+  protected $casts = [
+    'schema' => 'array',
+    'ui_state' => 'array',
+    'settings' => 'array',
+    'is_active' => 'boolean',
+    'sort_order' => 'integer',
+  ];
 
   protected static function booted(): void
   {
@@ -55,13 +59,18 @@ class Pipeline extends Model
     });
   }
 
-  public function rules(): HasMany
+  public function scenarios(): HasMany
   {
-    return $this->hasMany(BindingRule::class)->orderBy('sort_order');
+    return $this->hasMany(PipelineScenario::class, 'pipeline_id');
   }
 
-  protected static function newFactory(): \Nicole\Box\Core\Database\Factories\PipelineFactory
+  public function rules(): HasMany
   {
-    return \Nicole\Box\Core\Database\Factories\PipelineFactory::new();
+    return $this->hasMany(BindingRule::class, 'pipeline_id')->orderBy('sort_order');
+  }
+
+  public function bindingRules(): HasMany
+  {
+    return $this->hasMany(BindingRule::class, 'pipeline_id');
   }
 }
