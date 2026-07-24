@@ -15,7 +15,7 @@ class PipelineCluster extends Cluster
 
     protected static ?int $navigationSort = 3;
 
-    // Горизонтальные верхние вкладки навигации
+    // Горизонтальные верхние вкладки навигации в Filament 5.x
     protected static ?SubNavigationPosition $subNavigationPosition = SubNavigationPosition::Top;
 
     public static function getNavigationLabel(): string
@@ -30,6 +30,6 @@ class PipelineCluster extends Cluster
 
     public static function getNavigationGroup(): ?string
     {
-        return __('Catalog Settings');
+        return __('Configurations');
     }
 }
