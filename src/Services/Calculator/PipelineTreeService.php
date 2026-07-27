@@ -341,4 +341,34 @@ class PipelineTreeService
 
     return $bindings;
   }
+
+  /**
+   * Определяет код корневого типа товара (Root ProductType) для пайплайна.
+   * Корневой тип - это тип товара, который находится на самой вершине графа
+   * и не является дочерним элементом ни для одного другого слота.
+   */
+  public function resolveRootTypeCode(Pipeline $pipeline): ?string
+  {
+    $schema = $this->getPipelineSchema($pipeline->code, $pipeline);
+
+    if (empty($schema)) {
+      return null;
+    }
+
+    $allParents = array_keys($schema);
+    $allChildren = [];
+
+    foreach ($schema as $slots) {
+      foreach ($slots as $slot) {
+        if (!empty($slot['type_code'])) {
+          $allChildren[] = $slot['type_code'];
+        }
+      }
+    }
+
+    // Корневые типы - это родительские узлы, отсутствующие в списке дочерних типах
+    $rootTypes = array_values(array_diff($allParents, array_unique($allChildren)));
+
+    return $rootTypes[0] ?? array_key_first($schema);
+  }
 }
