@@ -28,5 +28,8 @@ Route::put('/orders/{code}', [OrderController::class, 'update']);
 
 Route::post('webhooks/calculator/deploy', [CalculatorWebhookController::class, 'deploy']);
 
-// Универсальный эндпоинт получения дерева связей
-Route::get('/pipelines/{pipeline}/{baseVariantId}', [PipelineConfigController::class, 'show']);
+// Список всех доступных пайплайнов
+Route::get('/pipelines', [PipelineConfigController::class, 'index']);
+
+// Эндпоинт пайплайна: без baseVariantId отдаст корневые SKU, с baseVariantId - дерево связей
+Route::get('/pipelines/{pipeline}/{baseVariantId?}', [PipelineConfigController::class, 'show']);

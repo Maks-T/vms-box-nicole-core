@@ -17,8 +17,10 @@ class NicoleCoreServiceProvider extends ServiceProvider
     // Поднимаемся на два уровня вверх до корня пакета
     $this->loadJsonTranslationsFrom(realpath(__DIR__ . '/../../lang'));
 
+    // Конфиги ядра
     $this->mergeConfigFrom(__DIR__ . '/../../config/nicole.php', 'nicole');
     $this->mergeConfigFrom(__DIR__ . '/../../config/media-library.php', 'media-library');
+    $this->mergeConfigFrom(__DIR__ . '/../../config/scramble.php', 'scramble');
 
     $this->app->singleton(PricingManager::class, fn() => new PricingManager);
     $this->app->singleton(CoreConfig::class, fn() => new CoreConfig());
@@ -45,8 +47,12 @@ class NicoleCoreServiceProvider extends ServiceProvider
 
       $this->loadMigrationsFrom(__DIR__ . '/../../database/migrations');
 
+      // Публикуем конфиги
       $this->publishes([__DIR__ . '/../../config/nicole.php' => config_path('nicole.php')], 'nicole-config');
       $this->publishes([__DIR__ . '/../../config/media-library.php' => config_path('media-library.php')], 'nicole-media-config');
+      $this->publishes([
+        __DIR__ . '/../../config/scramble.php' => config_path('scramble.php')
+      ], 'nicole-scramble-config');
 
       config([
         'media-library.media_model' => Media::class,

@@ -25,33 +25,36 @@ class PipelineTreeService
       return self::$schemas[$pipelineCode];
     }
 
+    $locale = app()->getLocale();
+
     $rawSchema = $pipeline
-      ? ($pipeline->schema ?? [])
-      : cache()->remember(CacheKey::PIPELINE_SCHEMA_PREFIX . $pipelineCode, 3600, function () use ($pipelineCode) {
-        return Pipeline::where('code', $pipelineCode)->value('schema') ?? [];
+      ? $pipeline->localized_schema
+      : cache()->remember(CacheKey::PIPELINE_SCHEMA_PREFIX . "{$pipelineCode}_{$locale}", 3600, function () use ($pipelineCode) {
+        return Pipeline::where('code', $pipelineCode)->first()?->localized_schema ?? [];
       });
 
-    if (empty($rawSchema) || !is_array($rawSchema) || !isset($rawSchema[collect($rawSchema)->keys()->first()][0])) {
-      return $rawSchema;
+    if (empty($rawSchema) || !is_array($rawSchema)) {
+      return [];
     }
 
     $associativeSchema = [];
+
     foreach ($rawSchema as $parentType => $slots) {
       if (!is_array($slots)) {
         continue;
       }
 
-      foreach ($slots as $slot) {
-        $roleCode = $slot['role_code'] ?? null;
+      foreach ($slots as $key => $slot) {
+        $roleCode = $slot['role_code'] ?? (is_string($key) ? $key : null);
         if (!$roleCode) {
           continue;
         }
 
         $associativeSchema[$parentType][$roleCode] = [
-          'label_key' => $slot['label_key'] ?? '',
+          'label_key' => (string) ($slot['label_key'] ?? ''),
           'type_code' => $slot['type_code'] ?? '',
-          'is_required' => (bool)($slot['is_required'] ?? false),
-          'is_multiple' => (bool)($slot['is_multiple'] ?? false),
+          'is_required' => (bool) ($slot['is_required'] ?? false),
+          'is_multiple' => (bool) ($slot['is_multiple'] ?? false),
         ];
       }
     }
@@ -276,5 +279,66 @@ class PipelineTreeService
         $this->toggleTreeActiveStatus($childNode, $status);
       }
     }
+  }
+
+  /**
+   * Преобразует глубокое дерево анализа в компактную карту связей (bindings) для виджетов.
+   */
+  public function extractBindings(array $node): array
+  {
+    $bindings = [];
+
+    foreach ($node['fields'] ?? [] as $field) {
+      $role = $field['field_code'] ?? null;
+      if (!$role) continue;
+
+      $isMultiple = !empty($field['is_multiple']);
+
+      if ($isMultiple) {
+        $items = [];
+        foreach ($field['children'] ?? [] as $childNode) {
+          $variantId = $childNode['variant_id'] ?? ($childNode['child']['id'] ?? null);
+          if (!$variantId) continue;
+
+          $itemData = ['variant_id' => (int) $variantId];
+
+          if (!empty($childNode['fields'])) {
+            $nested = $this->extractBindings($childNode);
+            if (!empty($nested)) {
+              $itemData = array_merge($itemData, $nested);
+            }
+          }
+
+          $items[] = $itemData;
+        }
+
+        if (!empty($items)) {
+          $bindings[$role] = $items;
+        }
+      } else {
+        $childId = $field['child']['id'] ?? null;
+        $staticMeta = $field['static_meta'] ?? null;
+
+        if ($childId) {
+          $bindingData = ['variant_id' => (int) $childId];
+
+          // Проверяем наличие вложенных характеристик у дочернего элемента
+          $childNode = $field['children'][0] ?? null;
+          if ($childNode && !empty($childNode['fields'])) {
+            $nested = $this->extractBindings($childNode);
+            if (!empty($nested)) {
+              $bindingData = array_merge($bindingData, $nested);
+            }
+          }
+
+          // Если у связи нет глубоких вложений, отдаем просто ID (например, "corner": 180)
+          $bindings[$role] = count($bindingData) === 1 ? (int) $childId : $bindingData;
+        } elseif (!empty($staticMeta)) {
+          $bindings['params'][$role] = is_array($staticMeta) ? head($staticMeta) : $staticMeta;
+        }
+      }
+    }
+
+    return $bindings;
   }
 }

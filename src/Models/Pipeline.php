@@ -9,19 +9,22 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Nicole\Box\Core\Support\Constants\CacheKey;
 use Nicole\Box\Core\Traits\HasExternalCode;
+use Nicole\Box\Core\Traits\HasLocalizedJson;
 use Nicole\Box\Core\Traits\HasSettings;
 use Spatie\Translatable\HasTranslations;
 
 /**
+ * @property array $localized_schema Виртуальное свойство с локализованной схемой
  * @mixin \Illuminate\Database\Eloquent\Builder
  * @mixin \Eloquent
  */
 class Pipeline extends Model
 {
   use HasExternalCode;
+  use HasFactory;
+  use HasLocalizedJson;
   use HasSettings;
   use HasTranslations;
-  use HasFactory;
 
   protected $table = 'pipelines';
 
@@ -48,14 +51,25 @@ class Pipeline extends Model
     'sort_order' => 'integer',
   ];
 
+  /**
+   * Виртуальный аксессор для получения схемы, автоматически локализованной под текущую локаль.
+   * Использование: $pipeline->localized_schema
+   */
+  public function getLocalizedSchemaAttribute(): array
+  {
+    return $this->getLocalizedJson('schema');
+  }
+
   protected static function booted(): void
   {
     static::saved(function (Pipeline $pipeline) {
       cache()->forget(CacheKey::PIPELINE_SCHEMA_PREFIX . $pipeline->external_code);
+      cache()->forget(CacheKey::PIPELINE_SCHEMA_PREFIX . $pipeline->code);
     });
 
     static::deleted(function (Pipeline $pipeline) {
       cache()->forget(CacheKey::PIPELINE_SCHEMA_PREFIX . $pipeline->external_code);
+      cache()->forget(CacheKey::PIPELINE_SCHEMA_PREFIX . $pipeline->code);
     });
   }
 
