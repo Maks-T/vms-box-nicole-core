@@ -21,6 +21,7 @@ class NicoleCoreServiceProvider extends ServiceProvider
     $this->mergeConfigFrom(__DIR__ . '/../../config/nicole.php', 'nicole');
     $this->mergeConfigFrom(__DIR__ . '/../../config/media-library.php', 'media-library');
     $this->mergeConfigFrom(__DIR__ . '/../../config/scramble.php', 'scramble');
+    $this->mergeConfigFrom(__DIR__ . '/../../config/cors.php', 'cors');
 
     $this->app->singleton(PricingManager::class, fn() => new PricingManager);
     $this->app->singleton(CoreConfig::class, fn() => new CoreConfig());
@@ -53,6 +54,9 @@ class NicoleCoreServiceProvider extends ServiceProvider
       $this->publishes([
         __DIR__ . '/../../config/scramble.php' => config_path('scramble.php')
       ], 'nicole-scramble-config');
+      $this->publishes([
+        __DIR__ . '/../../config/cors.php' => config_path('cors.php'),
+      ], 'nicole-cors-config');
 
       config([
         'media-library.media_model' => Media::class,
