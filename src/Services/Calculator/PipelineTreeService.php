@@ -51,10 +51,10 @@ class PipelineTreeService
         }
 
         $associativeSchema[$parentType][$roleCode] = [
-          'label_key' => (string) ($slot['label_key'] ?? ''),
+          'label_key' => (string)($slot['label_key'] ?? ''),
           'type_code' => $slot['type_code'] ?? '',
-          'is_required' => (bool) ($slot['is_required'] ?? false),
-          'is_multiple' => (bool) ($slot['is_multiple'] ?? false),
+          'is_required' => (bool)($slot['is_required'] ?? false),
+          'is_multiple' => (bool)($slot['is_multiple'] ?? false),
         ];
       }
     }
@@ -69,12 +69,27 @@ class PipelineTreeService
       return null;
     }
 
-    $rootVariant = ProductVariant::with('product.media')->find($rootVariantId);
+    $rootVariant = ProductVariant::with(['product.media', 'media'])->find($rootVariantId);
     if (!$rootVariant) {
       return null;
     }
 
     return $this->analyzeNode($rootVariant, $pipeline);
+  }
+
+  protected function resolveVariantName(ProductVariant $variant, string $locale): string
+  {
+    $variantName = $variant->getTranslation('name', $locale) ?: $variant->name;
+    if (filled($variantName)) {
+      return (string)$variantName;
+    }
+
+    $productName = $variant->product?->getTranslation('name', $locale) ?: $variant->product?->name;
+    if (filled($productName)) {
+      return (string)$productName;
+    }
+
+    return (string)($variant->sku ?? ('Variant #' . $variant->id));
   }
 
   private function analyzeNode(ProductVariant $variant, Pipeline $pipeline, array $visited = []): array
@@ -84,7 +99,7 @@ class PipelineTreeService
     if (in_array($variant->id, $visited, true)) {
       return [
         'variant_id' => $variant->id,
-        'variant_name' => ($variant->getTranslation('name', $currentLocale) ?: $variant->name) . ' (' . __('Cycle Detected') . ')',
+        'variant_name' => $this->resolveVariantName($variant, $currentLocale) . ' (' . __('Cycle Detected') . ')',
         'image_url' => $variant->getPreviewUrl() ?: $variant->product?->getPreviewUrl(),
         'is_valid' => false,
         'fields' => [],
@@ -127,7 +142,7 @@ class PipelineTreeService
           if ($child) {
             $childData = [
               'id' => $child->id,
-              'name' => $child->getTranslation('name', $currentLocale) ?: $child->name,
+              'name' => $this->resolveVariantName($child, $currentLocale),
               'slug' => $child->product?->slug ?? $child->slug,
               'image_url' => $child->getPreviewUrl() ?: $child->product?->getPreviewUrl(),
             ];
@@ -202,7 +217,7 @@ class PipelineTreeService
           if ($child) {
             $childData = [
               'id' => $child->id,
-              'name' => $child->getTranslation('name', $currentLocale) ?: $child->name,
+              'name' => $this->resolveVariantName($child, $currentLocale),
               'slug' => $child->product?->slug ?? $child->slug,
               'image_url' => $child->getPreviewUrl() ?: $child->product?->getPreviewUrl(),
             ];
@@ -254,7 +269,7 @@ class PipelineTreeService
 
     return [
       'variant_id' => $variant->id,
-      'variant_name' => $variant->getTranslation('name', $currentLocale) ?: $variant->name,
+      'variant_name' => $this->resolveVariantName($variant, $currentLocale),
       'image_url' => $variant->getPreviewUrl() ?: $variant->product?->getPreviewUrl(),
       'is_valid' => $isNodeValid,
       'fields' => $fieldReports,
@@ -300,7 +315,7 @@ class PipelineTreeService
           $variantId = $childNode['variant_id'] ?? ($childNode['child']['id'] ?? null);
           if (!$variantId) continue;
 
-          $itemData = ['variant_id' => (int) $variantId];
+          $itemData = ['variant_id' => (int)$variantId];
 
           if (!empty($childNode['fields'])) {
             $nested = $this->extractBindings($childNode);
@@ -320,7 +335,7 @@ class PipelineTreeService
         $staticMeta = $field['static_meta'] ?? null;
 
         if ($childId) {
-          $bindingData = ['variant_id' => (int) $childId];
+          $bindingData = ['variant_id' => (int)$childId];
 
           // Проверяем наличие вложенных характеристик у дочернего элемента
           $childNode = $field['children'][0] ?? null;
@@ -331,8 +346,8 @@ class PipelineTreeService
             }
           }
 
-          // Если у связи нет глубоких вложений, отдаем просто ID (например, "corner": 180)
-          $bindings[$role] = count($bindingData) === 1 ? (int) $childId : $bindingData;
+          // Если у связи нет глубоких вложений, отдаем просто ID
+          $bindings[$role] = count($bindingData) === 1 ? (int)$childId : $bindingData;
         } elseif (!empty($staticMeta)) {
           $bindings['params'][$role] = is_array($staticMeta) ? head($staticMeta) : $staticMeta;
         }

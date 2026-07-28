@@ -46,6 +46,7 @@
   };
 
   $roleCode = $node['field_code'] ?? '';
+  $ruleId   = $node['rule_id'] ?? 'none';
 
   $title = $blockTitle
     ?? ($node['label']
@@ -54,9 +55,10 @@
 
   $fields    = $node['fields'] ?? [];
   $hasFields = count($fields) > 0;
+  $nodeKey   = "node_v{$variantId}_r{$ruleId}_code{$roleCode}_d{$depth}";
 @endphp
 
-<div class="relative mb-4 {{ (!$isRoot) ? 'ml-8' : '' }}">
+<div wire:key="{{ $nodeKey }}" class="relative mb-4 {{ (!$isRoot) ? 'ml-8' : '' }}">
 
   @if(!$isRoot)
     <div class="absolute -left-6 -top-8 border-l-2 border-dotted border-gray-300 dark:border-gray-700" style="bottom: calc(100% - 24px);"></div>
@@ -128,13 +130,19 @@
 
         @if($hasFields)
           <div class="flex flex-col gap-3 mt-1 relative ml-2 pl-4 pr-2 sm:pr-4 pb-2 border-l-2 border-gray-100 dark:border-gray-800">
-            @foreach($fields as $childField)
+            @foreach($fields as $fIndex => $childField)
+              @php
+                $childCode = $childField['field_code'] ?? $fIndex;
+                $childRule = $childField['rule_id'] ?? $fIndex;
+                $fieldWireKey = "f_{$variantId}_{$childCode}_{$childRule}";
+              @endphp
+
               @if(!empty($childField['is_multiple']))
-                @include('nicole-core::filament.clusters.pipelines.components.fields.field-group', ['field' => $childField, 'depth' => $depth])
+                @include('nicole-core::filament.clusters.pipelines.components.fields.field-group', ['field' => $childField, 'depth' => $depth, 'wireKey' => $fieldWireKey])
               @elseif(empty($childField['child']['id']) && !empty($childField['static_meta']))
-                @include('nicole-core::filament.clusters.pipelines.components.fields.field-text', ['field' => $childField])
+                @include('nicole-core::filament.clusters.pipelines.components.fields.field-text', ['field' => $childField, 'wireKey' => $fieldWireKey])
               @else
-                @include('nicole-core::filament.clusters.pipelines.components.fields.field-single', ['field' => $childField, 'depth' => $depth])
+                @include('nicole-core::filament.clusters.pipelines.components.fields.field-single', ['field' => $childField, 'depth' => $depth, 'wireKey' => $fieldWireKey])
               @endif
             @endforeach
           </div>
