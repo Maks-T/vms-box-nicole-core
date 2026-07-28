@@ -261,7 +261,7 @@ class ProductImporter implements ImportModuleInterface
           $recordData['value_string'] = (string)$value;
         }
 
-        if (array_filter(array_slice($recordData, 3)) !== []) {
+        if (array_filter(array_slice($recordData, 3), fn($v) => $v !== null) !== []) {
           ProductAttributeValue::create($recordData);
         }
       }
