@@ -57,11 +57,17 @@ class GlobalApiExtension extends OperationExtension
           'description' => "**Фильтрация по динамическим характеристикам (EAV).**\n\nПередайте ассоциативный массив, где ключом является код EAV-атрибута, а значением - фильтруемые опции.\nРазрешено передавать несколько значений через запятую (например, для множественного выбора).\n\n*Пример запроса:* `?attr[color]=white,gray&attr[collection]=omoikiri_collection`",
           'type' => new StringType(),
           'example' => 'white,gray'
-        ]
+        ],
+
+        'search' => [
+          'description' => 'Поисковая строка. Осуществляет полнотекстовый поиск по названию, коду товара, SKU модификации и атрибутам.',
+          'type' => new StringType(),
+          'example' => 'Grandex M-701'
+        ],
       ];
 
       foreach ($customParams as $name => $meta) {
-        // Ищем, не добавил ли Scramble этот параметр автоматически
+
         /** @var \Dedoc\Scramble\Support\Generator\Parameter|null $parameter */
         $parameter = collect($operation->parameters)->first(function ($p) use ($name) {
           return $p->name === $name && $p->in === 'query';
