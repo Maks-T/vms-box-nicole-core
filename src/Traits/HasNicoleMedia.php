@@ -8,17 +8,10 @@ use Spatie\Image\Enums\Fit;
 use Spatie\MediaLibrary\InteractsWithMedia;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
-/**
- * Трейт HasNicoleMedia управляет загрузкой, конвертацией и получением
- * ссылок на изображения для сущностей каталога.
- */
 trait HasNicoleMedia
 {
   use InteractsWithMedia;
 
-  /**
-   * Регистрация автоматических конвертаций изображений.
-   */
   public function registerMediaConversions(?Media $media = null): void
   {
     if ($media && $media->getCustomProperty('skip_conversions')) {
@@ -34,102 +27,86 @@ trait HasNicoleMedia
       ->performOnCollections('main');
   }
 
-  /**
-   * Получить URL превью-изображения динамически по зарегистрированным коллекциям
-   *
-   * @return string|null Возвращает абсолютный URL изображения или null
-   */
-  public function getPreviewUrl(): ?string
+  public function getPreviewDiskPath(bool $cascade = true): ?string
   {
-    $url = null;
+    $media = $this->getFirstMedia('preview')
+      ?? ($this->getFirstMedia('main')
+        ?? $this->getFirstMedia('drawing'));
 
-    $collections = collect($this->getRegisteredMediaCollections())
-      ->sortBy(function ($collection) {
-        return match ($collection->name) {
-          'preview' => 1,
-          'main'    => 2,
-          'drawing' => 3,
-          default   => 10,
-        };
-      });
-
-    foreach ($collections as $collection) {
-      if ($this->hasMedia($collection->name)) {
-        $url = $this->getFirstMediaUrl($collection->name, 'preview')
-          ?: $this->getFirstMediaUrl($collection->name);
-
-        if ($url) {
-          break;
-        }
-      }
+    if ($media) {
+      return $media->getPathRelativeToRoot();
     }
 
-    // Каскад снизу вверх (только для Базового товара)
-    if (empty($url) && $this->relationLoaded('variants')) {
-      /** @var \Nicole\Box\Core\Models\ProductVariant|null $defaultVariant */
-      $defaultVariant = $this->variants
-        ->where('is_active', true)
-        ->sortByDesc('is_default')
-        ->first();
-
-      if ($defaultVariant) {
-        return $defaultVariant->getPreviewUrl();
-      }
-    }
-
-    if (empty($url)) {
+    if (!$cascade) {
       return null;
     }
+
+    if ($this instanceof \Nicole\Box\Core\Models\Product) {
+      $variants = $this->relationLoaded('variants')
+        ? $this->variants
+        : $this->variants()->where('is_active', true)->get();
+
+      /** @var \Nicole\Box\Core\Models\ProductVariant|null $defaultVariant */
+      $defaultVariant = $variants->sortByDesc('is_default')->first();
+
+      if ($defaultVariant && $defaultVariant->hasMedia()) {
+        return $defaultVariant->getPreviewDiskPath(false);
+      }
+    }
+
+    if ($this instanceof \Nicole\Box\Core\Models\ProductVariant && $this->product) {
+      return $this->product->getPreviewDiskPath(false);
+    }
+
+    return null;
+  }
+
+  public function getPreviewUrl(bool $cascade = true): ?string
+  {
+    $diskPath = $this->getPreviewDiskPath($cascade);
+
+    if (!$diskPath) {
+      return null;
+    }
+
+    $url = \Illuminate\Support\Facades\Storage::disk('public')->url($diskPath);
 
     return rtrim(config('app.url'), '/') . parse_url($url, PHP_URL_PATH);
   }
 
-  /**
-   * Получить URL детального изображения динамически по зарегистрированным коллекциям.
-   *
-   * @return string|null Возвращает абсолютный URL детального изображения или null
-   */
-  public function getDetailUrl(): ?string
+  public function getDetailUrl(bool $cascade = true): ?string
   {
-    $url = null;
+    $media = $this->getFirstMedia('main')
+      ?? ($this->getFirstMedia('drawing')
+        ?? $this->getFirstMedia('preview'));
 
-    $collections = collect($this->getRegisteredMediaCollections())
-      ->sortBy(function ($collection) {
-        return match ($collection->name) {
-          'main'    => 1,
-          'drawing' => 2,
-          default   => 10,
-        };
-      });
-
-    foreach ($collections as $collection) {
-      if ($this->hasMedia($collection->name)) {
-        $url = $this->getFirstMediaUrl($collection->name);
-
-        if ($url) {
-          break;
-        }
-      }
+    if ($media) {
+      $url = \Illuminate\Support\Facades\Storage::disk('public')->url($media->getPathRelativeToRoot());
+      return rtrim(config('app.url'), '/') . parse_url($url, PHP_URL_PATH);
     }
 
-    // Каскад снизу вверх (только для Базового товара)
-    if (empty($url) && $this->relationLoaded('variants')) {
-      /** @var \Nicole\Box\Core\Models\ProductVariant|null $defaultVariant */
-      $defaultVariant = $this->variants
-        ->where('is_active', true)
-        ->sortByDesc('is_default')
-        ->first();
-
-      if ($defaultVariant) {
-        return $defaultVariant->getDetailUrl();
-      }
-    }
-
-    if (empty($url)) {
+    if (!$cascade) {
       return null;
     }
 
-    return rtrim(config('app.url'), '/') . parse_url($url, PHP_URL_PATH);
+    if ($this instanceof \Nicole\Box\Core\Models\Product) {
+      $variants = $this->relationLoaded('variants')
+        ? $this->variants
+        : $this->variants()->where('is_active', true)->get();
+
+      /** @var \Nicole\Box\Core\Models\ProductVariant|null $defaultVariant */
+      $defaultVariant = $variants->sortByDesc('is_default')->first();
+
+      if ($defaultVariant) {
+        return $defaultVariant->getDetailUrl(false);
+      }
+    }
+
+    if ($this instanceof \Nicole\Box\Core\Models\ProductVariant && $this->product) {
+      return $this->product->getDetailUrl(false);
+    }
+
+    return null;
   }
 
 }
