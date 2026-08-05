@@ -30,7 +30,7 @@ return new class extends Migration {
       $table->jsonb('name');
       $table->string('symbol', 10);
       $table->jsonb('symbol_native')->nullable();
-      $table->decimal('rate', 15, 4)->default(1.0000);
+      $table->decimal('rate', 16, 8)->default(1.00000000);
       $table->boolean('is_default')->default(false);
 
       $table->integer('sort_order')->default(0);
