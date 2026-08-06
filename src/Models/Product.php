@@ -20,8 +20,9 @@ use Illuminate\Database\Eloquent\Casts\Attribute as EloquentAttribute;
 /**
  * Класс модели базового товара.
  *
- * @method static \Illuminate\Database\Eloquent\Builder|static publicInChannel(string $channelCode)
- * @method static \Illuminate\Database\Eloquent\Builder|static filterByEav(array $filters)
+ * @method static \Illuminate\Database\Eloquent\Builder publicInChannel(string $channelCode)
+ * @method static \Illuminate\Database\Eloquent\Builder filterByEav(array $filters)
+ * @method static \Illuminate\Database\Eloquent\Builder search(?string $search)
  */
 class Product extends Model implements HasMedia
 {
@@ -170,6 +171,80 @@ class Product extends Model implements HasMedia
     return EloquentAttribute::make(
       get: fn () => app(\Nicole\Box\Core\Services\PricingManager::class)->getRetailPrice($this),
     );
+  }
+
+  /**
+   * Сквозной полнотекстовый регистронезависимый поиск по всем языковым версиям,
+   * артикулам (SKU), кодам и EAV-характеристикам.
+   */
+  public function scopeSearch($query, ?string $search)
+  {
+    if (blank($search)) {
+      return $query;
+    }
+
+    $searchTerm = '%' . trim($search) . '%';
+    $locales = config('nicole.locales', ['ru', 'en']);
+
+    return $query->where(function ($sub) use ($searchTerm, $locales) {
+
+      // Поиск по полям самого товара (name, short_description, description)
+      foreach ($locales as $locale) {
+        $sub->orWhereRaw('name->>? ILIKE ?', [$locale, $searchTerm])
+          ->orWhereRaw('short_description->>? ILIKE ?', [$locale, $searchTerm])
+          ->orWhereRaw('description->>? ILIKE ?', [$locale, $searchTerm]);
+      }
+
+      // Системные коды товара
+      $sub->orWhere('code', 'ILIKE', $searchTerm)
+        ->orWhere('slug', 'ILIKE', $searchTerm)
+        ->orWhere('external_code', 'ILIKE', $searchTerm);
+
+      // Артикулы (SKU) и названия вариантов товара
+      $sub->orWhereHas('variants', function ($vQ) use ($searchTerm, $locales) {
+        $vQ->where('sku', 'ILIKE', $searchTerm)
+          ->orWhere('external_code', 'ILIKE', $searchTerm);
+
+        foreach ($locales as $locale) {
+          $vQ->orWhereRaw('name->>? ILIKE ?', [$locale, $searchTerm]);
+        }
+      });
+
+      // Значения EAV-атрибутов самого товара (строки + наименования опций в справочниках)
+      $sub->orWhereHas('attributeValues', function ($aQ) use ($searchTerm, $locales) {
+        $aQ->where('value_string', 'ILIKE', $searchTerm)
+          ->orWhereHas('option', function ($oQ) use ($searchTerm, $locales) {
+            $oQ->where('slug', 'ILIKE', $searchTerm);
+            foreach ($locales as $locale) {
+              $oQ->orWhereRaw('value->>? ILIKE ?', [$locale, $searchTerm]);
+            }
+          })
+          ->orWhereHas('complexRecord', function ($cQ) use ($searchTerm, $locales) {
+            $cQ->where('slug', 'ILIKE', $searchTerm);
+            foreach ($locales as $locale) {
+              $cQ->orWhereRaw('name->>? ILIKE ?', [$locale, $searchTerm]);
+            }
+          });
+      });
+
+      // Значения EAV-атрибутов вариантов товара
+      $sub->orWhereHas('variants.attributeValues', function ($vaQ) use ($searchTerm, $locales) {
+        $vaQ->where('value_string', 'ILIKE', $searchTerm)
+          ->orWhereHas('option', function ($oQ) use ($searchTerm, $locales) {
+            $oQ->where('slug', 'ILIKE', $searchTerm);
+            foreach ($locales as $locale) {
+              $oQ->orWhereRaw('value->>? ILIKE ?', [$locale, $searchTerm]);
+            }
+          })
+          ->orWhereHas('complexRecord', function ($cQ) use ($searchTerm, $locales) {
+            $cQ->where('slug', 'ILIKE', $searchTerm);
+            foreach ($locales as $locale) {
+              $cQ->orWhereRaw('name->>? ILIKE ?', [$locale, $searchTerm]);
+            }
+          });
+      });
+
+    });
   }
 
   protected static function newFactory(): \Nicole\Box\Core\Database\Factories\ProductFactory
