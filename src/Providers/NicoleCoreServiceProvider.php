@@ -21,7 +21,8 @@ class NicoleCoreServiceProvider extends ServiceProvider
     $this->mergeConfigFrom(__DIR__ . '/../../config/nicole.php', 'nicole');
     $this->mergeConfigFrom(__DIR__ . '/../../config/media-library.php', 'media-library');
     $this->mergeConfigFrom(__DIR__ . '/../../config/scramble.php', 'scramble');
-    $this->mergeConfigFrom(__DIR__ . '/../../config/cors.php', 'cors');
+    $coreCors = require __DIR__ . '/../../config/cors.php';
+    config(['cors' => array_replace_recursive(config('cors', []), $coreCors)]);
 
     $this->app->singleton(PricingManager::class, fn() => new PricingManager);
     $this->app->singleton(CoreConfig::class, fn() => new CoreConfig());
