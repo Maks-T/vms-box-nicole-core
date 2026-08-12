@@ -14,7 +14,6 @@ class NicoleCoreServiceProvider extends ServiceProvider
 {
   public function register(): void
   {
-    // Поднимаемся на два уровня вверх до корня пакета
     $this->loadJsonTranslationsFrom(realpath(__DIR__ . '/../../lang'));
 
     // Конфиги ядра
@@ -38,12 +37,13 @@ class NicoleCoreServiceProvider extends ServiceProvider
 
   public function boot(): void
   {
-    // Здесь также поднимаемся на два уровня вверх
+
     $this->loadViewsFrom(__DIR__ . '/../../resources/views', 'nicole-core');
 
     if ($this->app->runningInConsole()) {
       $this->commands([
         \Nicole\Box\Core\Console\Commands\ImportCatalogCommand::class,
+        \Nicole\Box\Core\Console\Commands\ExportCatalogCommand::class,
         \Nicole\Box\Core\Console\Commands\DbOptimizeCommand::class,
       ]);
 
