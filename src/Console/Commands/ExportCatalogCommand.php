@@ -148,7 +148,7 @@ class ExportCatalogCommand extends Command
       ])->toArray(),
     ])->toArray();
 
-    $data['products'] = Product::where('catalog_type', CatalogType::PRODUCT)
+    $data['products'] = Product::query()  //Product::where('catalog_type', CatalogType::PRODUCT)
       ->with(['type', 'category', 'unit', 'attributeValues.attribute', 'variants.attributeValues.attribute', 'variants.prices.type', 'variants.stocks.warehouse'])
       ->get()->map(fn($p) => $this->mapProduct($p))
       ->toArray();
@@ -179,7 +179,7 @@ class ExportCatalogCommand extends Command
     ])->toArray();
 
     $this->saveJson($path, $data);
-    $this->exportServices();
+    //$this->exportServices();
   }
 
   protected function mapProduct(Product $p): array
@@ -241,7 +241,7 @@ class ExportCatalogCommand extends Command
     };
   }
 
-  protected function exportServices(): void
+  protected function exportServices(): void //ToDO
   {
     $path = base_path($this->option('services'));
     $services = Product::where('catalog_type', CatalogType::SERVICE)
