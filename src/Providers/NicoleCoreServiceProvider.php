@@ -27,6 +27,7 @@ class NicoleCoreServiceProvider extends ServiceProvider
     $this->app->singleton(CoreConfig::class, fn() => new CoreConfig());
 
     // Регистрируем дочерние провайдеры
+    $this->app->register(PipelineServiceProvider::class);
     $this->app->register(MacroServiceProvider::class);
     $this->app->register(RelationServiceProvider::class);
     $this->app->register(ObserverServiceProvider::class);

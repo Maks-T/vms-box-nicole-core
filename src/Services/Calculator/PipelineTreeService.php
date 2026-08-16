@@ -4,14 +4,25 @@ declare(strict_types=1);
 
 namespace Nicole\Box\Core\Services\Calculator;
 
-use Nicole\Box\Core\Models\Pipeline;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\Relation;
+use Nicole\Box\Core\DTO\Pipeline\EntityReferenceDto;
+use Nicole\Box\Core\DTO\Pipeline\PipelineSlotDto;
 use Nicole\Box\Core\Models\BindingRule;
+use Nicole\Box\Core\Models\Pipeline;
 use Nicole\Box\Core\Models\ProductVariant;
-use Nicole\Box\Core\Models\Product;
 use Nicole\Box\Core\Support\Constants\CacheKey;
+use Nicole\Box\Core\Support\Pipelines\PipelineEntityResolver;
 
+/**
+ * Сервис построения, валидации и анализа графа связей пайплайнов (BOM / Дерево зависимостей).
+ */
 class PipelineTreeService
 {
+  /**
+   * Локальный реестр схем для тестирования и переопределения в рантайме.
+   * @var array<string, array>
+   */
   protected static array $schemas = [];
 
   public static function registerSchema(string $pipelineCode, array $schema): void
@@ -19,110 +30,160 @@ class PipelineTreeService
     self::$schemas[$pipelineCode] = $schema;
   }
 
-  public function getPipelineSchema(string $pipelineCode, ?Pipeline $pipeline = null): array
+  /**
+   * Получить типизированную карту слотов пайплайна в виде DTO.
+   *
+   * @return array<string, array<string, PipelineSlotDto>>
+   */
+  public function getPipelineSlots(string $pipelineCode, ?Pipeline $pipeline = null): array
   {
     if (isset(self::$schemas[$pipelineCode])) {
-      return self::$schemas[$pipelineCode];
+      $rawSchema = self::$schemas[$pipelineCode];
+    } else {
+      $locale = app()->getLocale();
+      $rawSchema = $pipeline
+        ? $pipeline->localized_schema
+        : cache()->remember(CacheKey::PIPELINE_SCHEMA_PREFIX . "{$pipelineCode}_{$locale}", 3600, function () use ($pipelineCode) {
+          return Pipeline::where('code', $pipelineCode)->first()?->localized_schema ?? [];
+        });
     }
-
-    $locale = app()->getLocale();
-
-    $rawSchema = $pipeline
-      ? $pipeline->localized_schema
-      : cache()->remember(CacheKey::PIPELINE_SCHEMA_PREFIX . "{$pipelineCode}_{$locale}", 3600, function () use ($pipelineCode) {
-        return Pipeline::where('code', $pipelineCode)->first()?->localized_schema ?? [];
-      });
 
     if (empty($rawSchema) || !is_array($rawSchema)) {
       return [];
     }
 
-    $associativeSchema = [];
+    $slotsMap = [];
 
     foreach ($rawSchema as $parentType => $slots) {
       if (!is_array($slots)) {
         continue;
       }
 
-      foreach ($slots as $key => $slot) {
-        $roleCode = $slot['role_code'] ?? (is_string($key) ? $key : null);
-        if (!$roleCode) {
+      foreach ($slots as $key => $slotData) {
+        if (!is_array($slotData)) {
           continue;
         }
 
-        $associativeSchema[$parentType][$roleCode] = [
-          'label_key' => (string)($slot['label_key'] ?? ''),
-          'type_code' => $slot['type_code'] ?? '',
-          'is_required' => (bool)($slot['is_required'] ?? false),
-          'is_multiple' => (bool)($slot['is_multiple'] ?? false),
-        ];
+        $roleCode = (string)($slotData['role_code'] ?? (is_string($key) ? $key : ''));
+        if ($roleCode === '') {
+          continue;
+        }
+
+        $slotsMap[$parentType][$roleCode] = PipelineSlotDto::fromArray($slotData, $roleCode);
       }
     }
 
-    return $associativeSchema;
+    return $slotsMap;
   }
 
-  public function analyzeTree(int $rootVariantId, string $pipelineCode): ?array
+  /**
+   * Получить схему пайплайна в виде массива для API-ресурсов и документации.
+   *
+   * @return array<string, array<string, array{label_key: string, type_code: string, is_required: bool, is_multiple: bool}>>
+   */
+  public function getPipelineSchema(string $pipelineCode, ?Pipeline $pipeline = null): array
   {
+    $slotsMap = $this->getPipelineSlots($pipelineCode, $pipeline);
+    $schemaArray = [];
+
+    foreach ($slotsMap as $parentType => $roles) {
+      foreach ($roles as $roleCode => $slotDto) {
+        $schemaArray[$parentType][$roleCode] = $slotDto->toArray();
+      }
+    }
+
+    return $schemaArray;
+  }
+
+  /**
+   * Универсальный полиморфный анализ графа связей для корневой сущности.
+   */
+  public function analyzeTree(
+    Model|int $rootEntity,
+    string    $pipelineCode,
+    string    $entityType = 'product_variant'
+  ): ?array
+  {
+    if ($rootEntity instanceof Model) {
+      $entity = $rootEntity;
+    } else {
+      $morphClass = Relation::getMorphedModel($entityType) ?? $entityType;
+      $entity = class_exists($morphClass) ? $morphClass::find($rootEntity) : null;
+    }
+
+    if (!$entity) {
+      return null;
+    }
+
     $pipeline = Pipeline::where('code', $pipelineCode)->first();
     if (!$pipeline) {
       return null;
     }
 
-    $rootVariant = ProductVariant::with(['product.media', 'media'])->find($rootVariantId);
-    if (!$rootVariant) {
-      return null;
-    }
-
-    return $this->analyzeNode($rootVariant, $pipeline);
+    return $this->analyzeNode($entity, $pipeline);
   }
 
-  protected function resolveVariantName(ProductVariant $variant, string $locale): string
+  /**
+   * Извлечение метаданных полиморфной сущности через EntityReferenceDto.
+   *
+   * @return array{type: string, id: int, parent_id: int|null, name: string, slug: string|null, image_url: string|null}|null
+   */
+  protected function extractEntityMeta(?Model $entity): ?array
   {
-    $variantName = $variant->getTranslation('name', $locale) ?: $variant->name;
-    if (filled($variantName)) {
-      return (string)$variantName;
-    }
-
-    $productName = $variant->product?->getTranslation('name', $locale) ?: $variant->product?->name;
-    if (filled($productName)) {
-      return (string)$productName;
-    }
-
-    return (string)($variant->sku ?? ('Variant #' . $variant->id));
+    return EntityReferenceDto::fromModel($entity)?->toArray();
   }
 
-  private function analyzeNode(ProductVariant $variant, Pipeline $pipeline, array $visited = []): array
+  /**
+   * Определение системного типа родителя для сопоставления со слотами схемы.
+   */
+  protected function resolveTypeCode(Model $entity): string
   {
-    $currentLocale = app()->getLocale();
+    return PipelineEntityResolver::resolveTypeCode($entity);
+  }
 
-    if (in_array($variant->id, $visited, true)) {
+  /**
+   * Рекурсивный полиморфный обход узла дерева с использованием PipelineSlotDto.
+   */
+  private function analyzeNode(Model $entity, Pipeline $pipeline, array $visited = []): array
+  {
+    $meta = $this->extractEntityMeta($entity);
+    $visitKey = "{$meta['type']}_{$meta['id']}";
+
+    if (in_array($visitKey, $visited, true)) {
       return [
-        'variant_id' => $variant->id,
-        'variant_name' => $this->resolveVariantName($variant, $currentLocale) . ' (' . __('Cycle Detected') . ')',
-        'image_url' => $variant->getPreviewUrl() ?: $variant->product?->getPreviewUrl(),
+        'type' => $meta['type'],
+        'id' => $meta['id'],
+        'parent_id' => $meta['parent_id'],
+        'name' => $meta['name'] . ' (' . __('Cycle Detected') . ')',
+        'slug' => $meta['slug'],
+        'image_url' => $meta['image_url'],
         'is_valid' => false,
         'fields' => [],
-        'product_slug' => $variant->product?->slug,
+        // Алиасы для Filament //ToDo
+        'variant_id' => $meta['id'],
+        'variant_name' => $meta['name'] . ' (' . __('Cycle Detected') . ')',
+        'product_slug' => $meta['slug'],
       ];
     }
 
-    $visited[] = $variant->id;
+    $visited[] = $visitKey;
 
     $pipelineCode = $pipeline->code ?? 'default';
-    $pipelineSchema = $this->getPipelineSchema($pipelineCode, $pipeline);
+    $pipelineSlots = $this->getPipelineSlots($pipelineCode, $pipeline);
 
-    $parentTypeCode = $variant->product?->type?->code ?? 'general';
-    $schema = $pipelineSchema[$parentTypeCode] ?? [];
+    $parentTypeCode = $this->resolveTypeCode($entity);
+    /** @var array<string, PipelineSlotDto> $slots */
+    $slots = $pipelineSlots[$parentTypeCode] ?? [];
 
     $isNodeValid = true;
     $fieldReports = [];
 
-    foreach ($schema as $roleCode => $slotMeta) {
-      $isMultiple = !empty($slotMeta['is_multiple']);
+    foreach ($slots as $roleCode => $slot) {
+      $isMultiple = $slot->isMultiple;
 
-      $rules = BindingRule::where('parent_type', $variant->getMorphClass())
-        ->where('parent_id', $variant->id)
+      // Полиморфный запрос правил привязки
+      $rules = BindingRule::where('parent_type', $entity->getMorphClass())
+        ->where('parent_id', $entity->getKey())
         ->where('role', $roleCode)
         ->orderBy('sort_order')
         ->get();
@@ -134,39 +195,40 @@ class PipelineTreeService
           $isFilled = !is_null($child) || !empty($rule->static_meta);
 
           $childrenTrees = [];
-          if ($isFilled && $rule->child_type === (new ProductVariant())->getMorphClass()) {
+          if ($isFilled && $child instanceof Model) {
             $childrenTrees = $this->analyzeNode($child, $pipeline, $visited);
           }
 
-          $childData = null;
-          if ($child) {
-            $childData = [
-              'id' => $child->id,
-              'name' => $this->resolveVariantName($child, $currentLocale),
-              'slug' => $child->product?->slug ?? $child->slug,
-              'image_url' => $child->getPreviewUrl() ?: $child->product?->getPreviewUrl(),
-            ];
-          }
+          $childData = $this->extractEntityMeta($child);
 
           $children[] = [
             'rule_id' => $rule->id,
             'field_code' => $roleCode,
-            'label' => $rule->name ?: $slotMeta['label_key'],
+            'label' => $rule->name ?: $slot->labelKey,
             'is_required' => false,
             'is_filled' => $isFilled,
             'is_valid' => $childrenTrees['is_valid'] ?? true,
-            'variant_id' => $childData['id'] ?? '',
-            'variant_name' => $childData['name'] ?? '',
-            'product_slug' => $childData['slug'] ?? null,
+
+            'type' => $childData['type'] ?? null,
+            'id' => $childData['id'] ?? null,
+            'parent_id' => $childData['parent_id'] ?? null,
+            'name' => $childData['name'] ?? '',
+            'slug' => $childData['slug'] ?? null,
             'image_url' => $childData['image_url'] ?? null,
+
             'child' => $childData,
             'static_meta' => $rule->static_meta,
             'fields' => $childrenTrees['fields'] ?? [],
+
+            // Алиасы для Filament
+            'variant_id' => $childData['id'] ?? '',
+            'variant_name' => $childData['name'] ?? '',
+            'product_slug' => $childData['slug'] ?? null,
           ];
         }
 
         $isGroupFilled = count($children) > 0;
-        if ($slotMeta['is_required'] && !$isGroupFilled) {
+        if ($slot->isRequired && !$isGroupFilled) {
           $isNodeValid = false;
         }
 
@@ -174,17 +236,17 @@ class PipelineTreeService
           'is_multiple' => true,
           'type' => 'multiselect',
           'field_code' => $roleCode,
-          'label' => $slotMeta['label_key'],
-          'is_required' => (bool)$slotMeta['is_required'],
+          'label' => $slot->labelKey,
+          'is_required' => $slot->isRequired,
           'is_filled' => $isGroupFilled,
-          'is_valid' => !$slotMeta['is_required'] || $isGroupFilled,
+          'is_valid' => !$slot->isRequired || $isGroupFilled,
           'children' => $children,
           'virtual_meta' => [
-            'parent_id' => $variant->id,
-            'parent_type' => $variant->getMorphClass(),
+            'parent_id' => $entity->getKey(),
+            'parent_type' => $entity->getMorphClass(),
             'role' => $roleCode,
             'pipeline_id' => $pipeline->id,
-            'type_code' => $slotMeta['type_code'],
+            'type_code' => $slot->typeCode,
           ]
         ];
 
@@ -193,7 +255,7 @@ class PipelineTreeService
         $isFilled = $rule && (!is_null($rule->child) || !empty($rule->static_meta));
         $isScalar = $rule && empty($rule->child_type);
 
-        if ($slotMeta['is_required'] && !$isFilled) {
+        if ($slot->isRequired && !$isFilled) {
           $isNodeValid = false;
         }
 
@@ -201,9 +263,8 @@ class PipelineTreeService
           $child = $rule->child;
           $childrenTrees = null;
 
-          if ($isFilled && $rule->child_type === (new ProductVariant())->getMorphClass()) {
+          if ($isFilled && $child instanceof Model) {
             $childrenTrees = $this->analyzeNode($child, $pipeline, $visited);
-
             $childrenTrees['rule_id'] = $rule->id;
 
             if (isset($childrenTrees['is_valid']) && !$childrenTrees['is_valid']) {
@@ -211,33 +272,16 @@ class PipelineTreeService
             }
           }
 
-          $childData = null;
-          $value = null;
-
-          if ($child) {
-            $childData = [
-              'id' => $child->id,
-              'name' => $this->resolveVariantName($child, $currentLocale),
-              'slug' => $child->product?->slug ?? $child->slug,
-              'image_url' => $child->getPreviewUrl() ?: $child->product?->getPreviewUrl(),
-            ];
-          } elseif (!empty($rule->static_meta)) {
-            $value = head($rule->static_meta);
-            $childData = [
-              'id' => '',
-              'name' => $value,
-              'slug' => null,
-              'image_url' => null,
-            ];
-          }
+          $childData = $child ? $this->extractEntityMeta($child) : null;
+          $value = !empty($rule->static_meta) ? head($rule->static_meta) : null;
 
           $fieldReports[] = [
             'rule_id' => $rule->id,
             'field_code' => $roleCode,
-            'label' => $rule->name ?: $slotMeta['label_key'],
-            'is_required' => (bool)$slotMeta['is_required'],
+            'label' => $rule->name ?: $slot->labelKey,
+            'is_required' => $slot->isRequired,
             'is_filled' => $isFilled,
-            'is_valid' => !$slotMeta['is_required'] || $isFilled,
+            'is_valid' => !$slot->isRequired || $isFilled,
             'value' => $value,
             'child' => $childData,
             'static_meta' => $rule->static_meta,
@@ -247,20 +291,20 @@ class PipelineTreeService
           $fieldReports[] = [
             'rule_id' => null,
             'field_code' => $roleCode,
-            'label' => $slotMeta['label_key'],
-            'is_required' => (bool)$slotMeta['is_required'],
+            'label' => $slot->labelKey,
+            'is_required' => $slot->isRequired,
             'is_filled' => false,
-            'is_valid' => !$slotMeta['is_required'],
+            'is_valid' => !$slot->isRequired,
             'value' => null,
             'child' => null,
             'static_meta' => null,
             'children' => [],
             'virtual_meta' => [
-              'parent_id' => $variant->id,
-              'parent_type' => $variant->getMorphClass(),
+              'parent_id' => $entity->getKey(),
+              'parent_type' => $entity->getMorphClass(),
               'role' => $roleCode,
               'pipeline_id' => $pipeline->id,
-              'type_code' => $slotMeta['type_code'],
+              'type_code' => $slot->typeCode,
             ]
           ];
         }
@@ -268,36 +312,25 @@ class PipelineTreeService
     }
 
     return [
-      'variant_id' => $variant->id,
-      'variant_name' => $this->resolveVariantName($variant, $currentLocale),
-      'image_url' => $variant->getPreviewUrl() ?: $variant->product?->getPreviewUrl(),
+      'type' => $meta['type'],
+      'id' => $meta['id'],
+      'parent_id' => $meta['parent_id'],
+      'name' => $meta['name'],
+      'slug' => $meta['slug'],
+      'image_url' => $meta['image_url'],
       'is_valid' => $isNodeValid,
       'fields' => $fieldReports,
-      'product_slug' => $variant->product?->slug,
-      'pipeline_industry' => $pipeline->industry,
+      'pipeline_industry' => $pipeline->industry ?? null,
+
+      // Алиасы для Filament
+      'variant_id' => $meta['id'],
+      'variant_name' => $meta['name'],
+      'product_slug' => $meta['slug'],
     ];
   }
 
-  public function toggleTreeActiveStatus(array $node, bool $status): void
-  {
-    $variantId = $node['variant_id'] ?? ($node['child']['id'] ?? null);
-
-    if ($variantId) {
-      ProductVariant::where('id', $variantId)->update(['is_active' => $status]);
-    }
-
-    $fields = $node['fields'] ?? ($node['children'] ?? []);
-
-    foreach ($fields as $field) {
-      $children = $field['children'] ?? [];
-      foreach ($children as $childNode) {
-        $this->toggleTreeActiveStatus($childNode, $status);
-      }
-    }
-  }
-
   /**
-   * Преобразует глубокое дерево анализа в компактную карту связей (bindings) для виджетов.
+   * Преобразует дерево связей в компактную карту bindings (EntityReference).
    */
   public function extractBindings(array $node): array
   {
@@ -312,10 +345,14 @@ class PipelineTreeService
       if ($isMultiple) {
         $items = [];
         foreach ($field['children'] ?? [] as $childNode) {
-          $variantId = $childNode['variant_id'] ?? ($childNode['child']['id'] ?? null);
-          if (!$variantId) continue;
+          $child = $childNode['child'] ?? null;
+          if (!$child || empty($child['id'])) continue;
 
-          $itemData = ['variant_id' => (int)$variantId];
+          $itemData = [
+            'type' => (string)$child['type'],
+            'id' => (int)$child['id'],
+            'parent_id' => $child['parent_id'] !== null ? (int)$child['parent_id'] : null,
+          ];
 
           if (!empty($childNode['fields'])) {
             $nested = $this->extractBindings($childNode);
@@ -331,13 +368,16 @@ class PipelineTreeService
           $bindings[$role] = $items;
         }
       } else {
-        $childId = $field['child']['id'] ?? null;
+        $child = $field['child'] ?? null;
         $staticMeta = $field['static_meta'] ?? null;
 
-        if ($childId) {
-          $bindingData = ['variant_id' => (int)$childId];
+        if ($child && !empty($child['id'])) {
+          $bindingData = [
+            'type' => (string)$child['type'],
+            'id' => (int)$child['id'],
+            'parent_id' => $child['parent_id'] !== null ? (int)$child['parent_id'] : null,
+          ];
 
-          // Проверяем наличие вложенных характеристик у дочернего элемента
           $childNode = $field['children'][0] ?? null;
           if ($childNode && !empty($childNode['fields'])) {
             $nested = $this->extractBindings($childNode);
@@ -346,8 +386,7 @@ class PipelineTreeService
             }
           }
 
-          // Если у связи нет глубоких вложений, отдаем просто ID
-          $bindings[$role] = count($bindingData) === 1 ? (int)$childId : $bindingData;
+          $bindings[$role] = $bindingData;
         } elseif (!empty($staticMeta)) {
           $bindings['params'][$role] = is_array($staticMeta) ? head($staticMeta) : $staticMeta;
         }
@@ -357,33 +396,55 @@ class PipelineTreeService
     return $bindings;
   }
 
-  /**
-   * Определяет код корневого типа товара (Root ProductType) для пайплайна.
-   * Корневой тип - это тип товара, который находится на самой вершине графа
-   * и не является дочерним элементом ни для одного другого слота.
-   */
-  public function resolveRootTypeCode(Pipeline $pipeline): ?string
+  public function toggleTreeActiveStatus(array $node, bool $status): void
   {
-    $schema = $this->getPipelineSchema($pipeline->code, $pipeline);
+    $entityId = $node['id'] ?? ($node['variant_id'] ?? null);
+    $entityType = $node['type'] ?? 'product_variant';
 
-    if (empty($schema)) {
-      return null;
-    }
-
-    $allParents = array_keys($schema);
-    $allChildren = [];
-
-    foreach ($schema as $slots) {
-      foreach ($slots as $slot) {
-        if (!empty($slot['type_code'])) {
-          $allChildren[] = $slot['type_code'];
+    if ($entityId) {
+      $morphClass = Relation::getMorphedModel($entityType) ?? $entityType;
+      if (class_exists($morphClass)) {
+        $entity = $morphClass::find($entityId);
+        if ($entity && in_array('is_active', $entity->getFillable(), true)) {
+          $entity->update(['is_active' => $status]);
         }
       }
     }
 
-    // Корневые типы - это родительские узлы, отсутствующие в списке дочерних типах
+    $fields = $node['fields'] ?? ($node['children'] ?? []);
+
+    foreach ($fields as $field) {
+      $children = $field['children'] ?? [];
+      foreach ($children as $childNode) {
+        $this->toggleTreeActiveStatus($childNode, $status);
+      }
+    }
+  }
+
+  /**
+   * Определяет код корневого типа товара для пайплайна с использованием PipelineSlotDto.
+   */
+  public function resolveRootTypeCode(Pipeline $pipeline): ?string
+  {
+    $slotsMap = $this->getPipelineSlots($pipeline->code, $pipeline);
+
+    if (empty($slotsMap)) {
+      return null;
+    }
+
+    $allParents = array_keys($slotsMap);
+    $allChildren = [];
+
+    foreach ($slotsMap as $roles) {
+      foreach ($roles as $slotDto) {
+        if (!empty($slotDto->typeCode)) {
+          $allChildren[] = $slotDto->typeCode;
+        }
+      }
+    }
+
     $rootTypes = array_values(array_diff($allParents, array_unique($allChildren)));
 
-    return $rootTypes[0] ?? array_key_first($schema);
+    return $rootTypes[0] ?? array_key_first($slotsMap);
   }
 }

@@ -9,7 +9,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 use Nicole\Box\Core\Services\Calculator\PipelineTreeService;
 
 /**
- * Метаданные и схема пайплайна.
+ * Метаданные и схема ролей пайплайна.
  *
  * @mixin \Nicole\Box\Core\Models\Pipeline
  */
@@ -25,10 +25,10 @@ class PipelineDetailResource extends JsonResource
        * @var int
        * @example 1
        */
-      'id' => (int) $this->id,
+      'id' => (int)$this->id,
 
       /**
-       * Уникальный код пайплайна.
+       * Уникальный системный код пайплайна.
        * @var string
        * @example "pl_terrace"
        */
@@ -46,18 +46,19 @@ class PipelineDetailResource extends JsonResource
        * @var string
        * @example "Конфигуратор террасного настила (ДПК)"
        */
-      'name' => (string) $this->name,
+      'name' => (string)$this->name,
 
       /**
        * Описание назначения пайплайна.
        * @var string|null
-       * @example "Калькулятор расчета террасных систем"
+       * @example "Цепочка связей для расчета террасных систем"
        */
-      'description' => $this->description ? (string) $this->description : null,
+      'description' => $this->description ? (string)$this->description : null,
 
       /**
        * Скомпилированная схема ролей, слотов и типов товаров.
        * @var array<string, array<string, array{label_key: string, type_code: string, is_required: bool, is_multiple: bool}>>
+       * @example {"terraceBoard": {"baseClip": {"label_key": "Рядовой кляймер", "type_code": "brackets", "is_required": true, "is_multiple": false}}}
        */
       'schema' => $treeService->getPipelineSchema($this->code, $this->resource),
     ];

@@ -31,5 +31,5 @@ Route::post('webhooks/calculator/deploy', [CalculatorWebhookController::class, '
 // Список всех доступных пайплайнов
 Route::get('/pipelines', [PipelineConfigController::class, 'index']);
 
-// Эндпоинт пайплайна: без baseVariantId отдаст корневые SKU, с baseVariantId - дерево связей
-Route::get('/pipelines/{pipeline}/{baseVariantId?}', [PipelineConfigController::class, 'show']);
+// Эндпоинт пайплайна: без baseEntityId отдаст корневые сущности (root_entities), с baseEntityId - дерево связей
+Route::get('/pipelines/{pipeline}/{baseEntityId?}', [PipelineConfigController::class, 'show']);

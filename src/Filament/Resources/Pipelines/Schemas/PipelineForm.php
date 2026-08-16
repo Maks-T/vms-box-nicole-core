@@ -11,10 +11,13 @@ use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
+use Nicole\Box\Core\DTO\Pipeline\PipelineSlotDto;
 use Nicole\Box\Core\Filament\Forms\Tabs\SalesChannelsTab;
+use Nicole\Box\Core\Models\ComplexDictionary;
 use Nicole\Box\Core\Models\Pipeline;
 use Nicole\Box\Core\Models\ProductType;
 use Nicole\Box\Core\Services\Calculator\PipelineTreeService;
@@ -27,8 +30,9 @@ class PipelineForm
     return $schema->components(function (?Model $record) {
       $pipelineCode = $record instanceof Pipeline ? $record->code : '';
 
-      $pipelineSchema = app(PipelineTreeService::class)->getPipelineSchema((string)$pipelineCode, $record);
-      $parentTypeCodes = collect($pipelineSchema)->keys()->toArray();
+      $treeService = app(PipelineTreeService::class);
+      $pipelineSlots = $treeService->getPipelineSlots((string)$pipelineCode, $record);
+      $parentTypeCodes = collect($pipelineSlots)->keys()->toArray();
 
       if (empty($parentTypeCodes)) {
         $parentTypeCodes = ProductType::pluck('code')->toArray();
@@ -38,8 +42,12 @@ class PipelineForm
       $locale = app()->getLocale();
 
       foreach ($parentTypeCodes as $parentTypeCode) {
+
         $productType = ProductType::where('code', $parentTypeCode)->first();
-        $title = $productType?->getTranslation('name', $locale) ?? ucfirst($parentTypeCode);
+        $dictionary = ComplexDictionary::where('code', $parentTypeCode)->first();
+
+        $title = $productType?->getTranslation('name', $locale)
+          ?? ($dictionary?->getTranslation('name', $locale) ?? ucfirst($parentTypeCode));
 
         $sections[] = Section::make($title)
           ->icon('heroicon-o-folder-open')
@@ -47,7 +55,6 @@ class PipelineForm
           ->schema([
             Repeater::make("schema.{$parentTypeCode}")
               ->hiddenLabel()
-
               ->formatStateUsing(function ($state) {
                 if (!is_array($state)) {
                   return [];
@@ -59,12 +66,21 @@ class PipelineForm
                     if (is_string($key) && empty($item['role_code'])) {
                       $item['role_code'] = $key;
                     }
+
+                    $typeCode = $item['type_code'] ?? 'general';
+                    if ($typeCode === 'general') {
+                      $item['target_entity_type'] = 'general';
+                    } elseif (ComplexDictionary::where('code', $typeCode)->exists()) {
+                      $item['target_entity_type'] = 'complex_dictionary';
+                    } else {
+                      $item['target_entity_type'] = 'product_type';
+                    }
+
                     $formatted[] = $item;
                   }
                 }
                 return $formatted;
               })
-
               ->dehydrateStateUsing(function ($state) {
                 if (!is_array($state)) {
                   return [];
@@ -74,6 +90,12 @@ class PipelineForm
                 foreach ($state as $item) {
                   $roleCode = $item['role_code'] ?? null;
                   if ($roleCode) {
+
+                    if (($item['target_entity_type'] ?? '') === 'general') {
+                      $item['type_code'] = 'general';
+                    }
+                    unset($item['target_entity_type']);
+
                     $result[$roleCode] = $item;
                   }
                 }
@@ -84,31 +106,41 @@ class PipelineForm
                   ->label(__('Role Code'))
                   ->required()
                   ->alphaDash()
-                  ->datalist(function () {
-                    return array_keys(PipelineRoleResolver::getOptions());
-                  }),
+                  ->datalist(fn() => array_keys(PipelineRoleResolver::getOptions())),
 
                 TextInput::make('label_key')
                   ->label(__('Label Key (e.g. Start Clip)'))
                   ->required()
                   ->translatable(),
 
-                Select::make('type_code')
-                  ->label(__('Target Product Type'))
-                  ->options(fn() => ProductType::pluck('name', 'code'))
+                Select::make('target_entity_type')
+                  ->label(__('Target Entity'))
+                  ->options([
+                    'product_type' => __('Product Type'),
+                    'complex_dictionary' => __('Complex Dictionary'),
+                    'general' => __('Technical Parameter (Scalar)'),
+                  ])
+                  ->default('product_type')
                   ->required()
                   ->live()
-                  ->afterStateUpdated(function ($state, callable $set, Get $get) {
-                    if ($state) {
-                      $defaultType = PipelineRoleResolver::getDefaultProductType($state);
-                      if ($defaultType && blank($get('type_code'))) {
-                        $set('type_code', $defaultType);
-                      }
-                      if (blank($get('label_key'))) {
-                        $set('label_key', PipelineRoleResolver::getLabel($state));
-                      }
+                  ->afterStateUpdated(fn(Set $set) => $set('type_code', null))
+                  ->native(false),
+
+                Select::make('type_code')
+                  ->label(__('Target Code'))
+                  ->required(fn(Get $get) => $get('target_entity_type') !== 'general')
+                  ->visible(fn(Get $get) => $get('target_entity_type') !== 'general')
+                  ->options(function (Get $get) {
+                    $targetType = $get('target_entity_type') ?? 'product_type';
+
+                    if ($targetType === 'complex_dictionary') {
+                      return ComplexDictionary::where('is_active', true)->pluck('name', 'code')->toArray();
                     }
-                  }),
+
+                    return ProductType::where('is_active', true)->pluck('name', 'code')->toArray();
+                  })
+                  ->searchable()
+                  ->native(false),
 
                 Toggle::make('is_required')
                   ->label(__('Is Required'))
@@ -118,7 +150,7 @@ class PipelineForm
                   ->label(__('Is Multiple (Folder)'))
                   ->default(false),
               ])
-              ->columns(5)
+              ->columns(6)
               ->addActionLabel(__('Add Slot'))
           ]);
       }

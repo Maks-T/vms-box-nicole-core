@@ -16,16 +16,16 @@ class PipelineConfigShowResource extends JsonResource
   {
     return [
       /**
-       * Информация о пайплайне и его схема.
+       * Информация о пайплайне и его схема слотов.
        */
       'pipeline' => new PipelineDetailResource($this->resource['pipeline_model']),
 
       /**
-       * Компактная карта связей и параметров (ключ - роль).
+       * Компактная карта связей и параметров (ключ - роль слота).
        * @var object
-       * @example {"corner": 180, "baseClip": {"variant_id": 4, "params": {"holes": 1}}, "startClip": {"variant_id": 8, "params": {"holes": 1}}, "stepBoards": [{"variant_id": 119, "params": {"noseSize": 20}}]}
+       * @example {"corner": {"type": "product_variant", "id": 183, "parent_id": 89}, "baseClip": {"type": "product_variant", "id": 5, "parent_id": 14, "params": {"holes": "1"}}, "startClip": {"type": "product_variant", "id": 9, "parent_id": 16, "params": {"holes": "1"}}, "stepBoards": [{"type": "product_variant", "id": 110, "parent_id": 67, "params": {"noseSize": "20"}}]}
        */
-      'bindings' => (object) ($this->resource['bindings'] ?? []),
+      'bindings' => (object)($this->resource['bindings'] ?? []),
 
       /**
        * Подробный дерево-граф связей для визуального конструктора.

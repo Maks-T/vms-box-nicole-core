@@ -1,4 +1,4 @@
-@props(['variantId', 'isValid', 'isRootActive'])
+@props(['entityId', 'entityType' => 'product_variant', 'isValid', 'isRootActive'])
 
 @php
   if ($isRootActive) {
@@ -49,7 +49,7 @@
     </div>
 
     <div class="shrink-0 ml-auto">
-      <x-filament::button wire:click="mountAction('activateTree', { variant_id: {{ $variantId }}, action: '{{ $action }}' })" :color="$btnColor" :icon="$btnIcon" :disabled="!$isValid && !$isRootActive">
+      <x-filament::button wire:click="mountAction('activateTree', { entity_id: {{ $entityId }}, entity_type: '{{ $entityType }}', action: '{{ $action }}' })" :color="$btnColor" :icon="$btnIcon" :disabled="!$isValid && !$isRootActive">
         {{ $btnLabel }}
       </x-filament::button>
     </div>

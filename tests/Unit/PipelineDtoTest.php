@@ -12,23 +12,26 @@ use Nicole\Box\Core\DTO\Pipeline\PipelineItemDto;
 use Nicole\Box\Core\DTO\Pipeline\PipelineInputDto;
 use Nicole\Box\Core\DTO\Pipeline\PipelineExportDto;
 use Nicole\Box\Core\DTO\Pipeline\BindingRuleExportDto;
+use Nicole\Box\Core\DTO\Pipeline\EntityReferenceDto;
 
 class PipelineDtoTest extends TestCase
 {
-  use LazilyRefreshDatabase; 
+  use LazilyRefreshDatabase;
 
   /**
-   * Сценарий: Проверка инициализации входных DTO-классов конвейера.
+   * Проверка инициализации входных полиморфных DTO.
    */
   public function test_can_instantiate_pipeline_input_dtos(): void
   {
     $item = new PipelineItemDto(
-      variantId: 10,
+      id: 10,
       quantity: 2.5,
+      type: 'product_variant',
       parentNodeId: 5
     );
 
-    $this->assertEquals(10, $item->variantId);
+    $this->assertEquals(10, $item->id);
+    $this->assertEquals('product_variant', $item->type);
     $this->assertEquals(2.5, $item->quantity);
     $this->assertEquals(5, $item->parentNodeId);
 
@@ -43,17 +46,15 @@ class PipelineDtoTest extends TestCase
   }
 
   /**
-   * Сценарий: Проверка экспорта (маппинга) моделей в выходные DTO-классы.
+   * Проверка экспорта конвейера и правил через DTO.
    */
   public function test_can_map_pipeline_models_to_export_dtos(): void
   {
-    // Создаем конвейер через фабрику
     /** @var Pipeline $pipeline */
     $pipeline = Pipeline::factory()->create([
-      'industry' => 'stone',
+      'code' => 'pl_stone',
     ]);
 
-    // Создаем правило привязки компонентов
     /** @var BindingRule $rule */
     $rule = BindingRule::factory()->create([
       'pipeline_id' => $pipeline->id,
@@ -61,15 +62,11 @@ class PipelineDtoTest extends TestCase
       'is_required' => true,
     ]);
 
-    // Экспортируем конвейер через DTO
     $dto = PipelineExportDto::fromModel($pipeline);
 
-    // Сверяем базовые свойства
     $this->assertEquals($pipeline->id, $dto->id);
+    $this->assertEquals($pipeline->code, $dto->code);
     $this->assertEquals($pipeline->getTranslation('name', 'ru'), $dto->name);
-    $this->assertEquals('stone', $dto->industry);
-
-    // Проверяем вложенную коллекцию DTO правил привязки
     $this->assertCount(1, $dto->rules);
 
     /** @var BindingRuleExportDto $ruleDto */
@@ -81,5 +78,4 @@ class PipelineDtoTest extends TestCase
     $this->assertEquals('width * 2', $ruleDto->quantityFormula);
     $this->assertTrue($ruleDto->isRequired);
   }
-
 }
