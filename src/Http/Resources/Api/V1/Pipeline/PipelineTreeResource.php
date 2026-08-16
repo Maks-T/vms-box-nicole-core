@@ -14,12 +14,6 @@ class PipelineTreeResource extends JsonResource
 {
   public function toArray(Request $request): array
   {
-    $id = (int) ($this->resource['id'] ?? ($this->resource['variant_id'] ?? 0));
-    $name = (string) ($this->resource['name'] ?? ($this->resource['variant_name'] ?? ''));
-    $slug = isset($this->resource['slug'])
-      ? (string) $this->resource['slug']
-      : (isset($this->resource['product_slug']) ? (string) $this->resource['product_slug'] : null);
-
     return [
       /**
        * Полиморфный тип корневой сущности узла (например: product_variant, complex_dictionary_record, product).
@@ -31,35 +25,35 @@ class PipelineTreeResource extends JsonResource
       /**
        * Уникальный ID сущности текущего узла.
        * @var int
-       * @example 154
+       * @example 165
        */
-      'id' => $id,
+      'id' => (int) ($this->resource['id'] ?? 0),
 
       /**
        * ID родительской базовой сущности (для SKU — ID базового товара, для записи — ID справочника).
        * @var int|null
-       * @example 89
+       * @example 81
        */
       'parent_id' => isset($this->resource['parent_id']) ? (int) $this->resource['parent_id'] : null,
 
       /**
        * Название сущности узла.
        * @var string
-       * @example "Террасная доска CM Decking Bark 3000 (Мербау)"
+       * @example "Террасная доска ПроДекинг (22 односторонняя) 4000 (Антрацит)"
        */
-      'name' => $name,
+      'name' => (string) ($this->resource['name'] ?? ''),
 
       /**
        * Уникальный ЧПУ-идентификатор (слаг) сущности или родительского товара.
        * @var string|null
-       * @example "terrasnaia-doska-cm-decking-bark-3000-a26eb"
+       * @example "terrasnaia-doska-prodeking-22-odnostoronniaia-4000-a4795"
        */
-      'slug' => $slug,
+      'slug' => isset($this->resource['slug']) ? (string) $this->resource['slug'] : null,
 
       /**
        * URL изображения или превью текущего узла.
        * @var string|null
-       * @example "https://wpc.vistegra-admin.ru/storage/catalog/product_variant/154/preview/thumbnail.webp"
+       * @example "https://wpc.vistegra-admin.ru/storage/catalog/product_variant/165/preview/thumbnail.webp"
        */
       'image_url' => isset($this->resource['image_url']) ? (string) $this->resource['image_url'] : null,
 
@@ -95,7 +89,8 @@ class PipelineTreeResource extends JsonResource
        *     parent_type: string,
        *     role: string,
        *     pipeline_id: int,
-       *     type_code: string
+       *     target_type: string,
+       *     target_code: string|null
        *   }
        * }>
        */

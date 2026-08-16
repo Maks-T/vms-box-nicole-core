@@ -16,6 +16,7 @@ use Nicole\Box\Core\Models\BindingRule;
 use Nicole\Box\Core\Models\Pipeline;
 use Nicole\Box\Core\Models\ProductVariant;
 use Nicole\Box\Core\Services\Calculator\PipelineTreeService;
+use Nicole\Box\Core\Support\Constants\EntityType as ET;
 
 /**
  * @group Core: Пайплайны и конфигураторы
@@ -26,9 +27,7 @@ class PipelineConfigController extends Controller
 {
   public function __construct(
     protected PipelineTreeService $treeService
-  )
-  {
-  }
+  ) {}
 
   /**
    * Список всех доступных пайплайнов конфигураторов.
@@ -73,7 +72,7 @@ class PipelineConfigController extends Controller
    *
    * @param Request $request
    * @param string $pipeline Системный code, ЧПУ-slug или external_code пайплайна (например: `pl_terrace`)
-   * @param int|null $baseEntityId ID корневой сущности (например, ID модификации SKU или ID записи справочника)
+   * @param string|int|null $baseEntityId ID корневой сущности (например, ID модификации SKU или ID записи справочника)
    *
    * @response 200 array{
    *   status: "success",
@@ -87,8 +86,8 @@ class PipelineConfigController extends Controller
    * @response 404 array{status: "error", message: "Пайплайн не найден."}
    */
   #[PathParameter('pipeline', description: 'Системный код (code), slug или external_code пайплайна.', type: 'string', example: 'pl_terrace')]
-  #[PathParameter('baseEntityId', description: 'Уникальный ID корневой сущности (SKU / записи). Если не передан, отдается список всех корневых сущностей.', type: 'int', default: null, example: 154)]
-  public function show(Request $request, string $pipeline, ?int $baseEntityId = null): JsonResponse
+  #[PathParameter('baseEntityId', description: 'Уникальный ID корневой сущности (SKU / записи). Если не передан, отдается список всех корневых сущностей.', type: 'int', example: 154)]
+  public function show(Request $request, string $pipeline, string|int|null $baseEntityId = null): JsonResponse
   {
     $pipelineModel = $this->findPipeline($pipeline);
 
@@ -99,13 +98,20 @@ class PipelineConfigController extends Controller
       ], 404);
     }
 
-    if (!$baseEntityId) {
+    // Нормализация значения baseEntityId из URL
+    if ($baseEntityId === 'null' || $baseEntityId === 'undefined' || $baseEntityId === '' || $baseEntityId === null) {
+      $resolvedId = null;
+    } else {
+      $resolvedId = is_numeric($baseEntityId) ? (int) $baseEntityId : $baseEntityId;
+    }
+
+    if (!$resolvedId) {
       return $this->showRootEntities($pipelineModel);
     }
 
-    $entityType = (string)$request->query('entity_type', (new ProductVariant())->getMorphClass());
+    $entityType = (string) $request->query('entity_type', ET::PRODUCT_VARIANT);
 
-    return $this->showPipelineTree($pipelineModel, $baseEntityId, $entityType);
+    return $this->showPipelineTree($pipelineModel, (int) $resolvedId, $entityType);
   }
 
   /**
@@ -124,10 +130,10 @@ class PipelineConfigController extends Controller
     $rootVariantsQuery = ProductVariant::query()
       ->whereIn('id', $configuredVariantIds)
       ->where('is_active', true)
-      ->whereHas('product', fn($q) => $q->where('is_active', true));
+      ->whereHas('product', fn ($q) => $q->where('is_active', true));
 
     if ($rootTypeCode) {
-      $rootVariantsQuery->whereHas('product.type', fn($q) => $q->where('code', $rootTypeCode));
+      $rootVariantsQuery->whereHas('product.type', fn ($q) => $q->where('code', $rootTypeCode));
     }
 
     $rootEntities = $rootVariantsQuery
@@ -160,7 +166,7 @@ class PipelineConfigController extends Controller
   /**
    * Режим 2: Анализ графа зависимостей и отдача карты связей (bindings) и дерева (tree).
    */
-  private function showPipelineTree(Pipeline $pipeline, int $baseEntityId, string $entityType = 'product_variant'): JsonResponse
+  private function showPipelineTree(Pipeline $pipeline, int $baseEntityId, string $entityType = ET::PRODUCT_VARIANT): JsonResponse
   {
     $tree = $this->treeService->analyzeTree($baseEntityId, $pipeline->code, $entityType);
 

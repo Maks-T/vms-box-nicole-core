@@ -54,8 +54,8 @@ class BootstrapPipelineResource extends JsonResource
       'description' => $this->description ? (string) $this->description : null,
 
       /**
-       * Скомпилированная схема ролей, слотов и типов товаров пайплайна.
-       * @var array<string, array<string, array{label_key: string, type_code: string, is_required: bool, is_multiple: bool}>>
+       * Скомпилированная схема ролей, слотов и типов назначения пайплайна.
+       * @var array<string, array<string, array{label_key: string, target_type: string, target_code: string|null, is_required: bool, is_multiple: bool}>>
        */
       'schema' => $treeService->getPipelineSchema($this->code, $this->resource),
     ];

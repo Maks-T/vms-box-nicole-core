@@ -10,8 +10,8 @@ use Nicole\Box\Core\DTO\Pipeline\EntityReferenceDto;
 use Nicole\Box\Core\DTO\Pipeline\PipelineSlotDto;
 use Nicole\Box\Core\Models\BindingRule;
 use Nicole\Box\Core\Models\Pipeline;
-use Nicole\Box\Core\Models\ProductVariant;
 use Nicole\Box\Core\Support\Constants\CacheKey;
+use Nicole\Box\Core\Support\Constants\EntityType as ET;
 use Nicole\Box\Core\Support\Pipelines\PipelineEntityResolver;
 
 /**
@@ -79,7 +79,7 @@ class PipelineTreeService
   /**
    * Получить схему пайплайна в виде массива для API-ресурсов и документации.
    *
-   * @return array<string, array<string, array{label_key: string, type_code: string, is_required: bool, is_multiple: bool}>>
+   * @return array<string, array<string, array{label_key: string, target_type: string, target_code: string|null, is_required: bool, is_multiple: bool}>>
    */
   public function getPipelineSchema(string $pipelineCode, ?Pipeline $pipeline = null): array
   {
@@ -101,7 +101,7 @@ class PipelineTreeService
   public function analyzeTree(
     Model|int $rootEntity,
     string    $pipelineCode,
-    string    $entityType = 'product_variant'
+    string    $entityType = ET::PRODUCT_VARIANT
   ): ?array
   {
     if ($rootEntity instanceof Model) {
@@ -159,10 +159,6 @@ class PipelineTreeService
         'image_url' => $meta['image_url'],
         'is_valid' => false,
         'fields' => [],
-        // Алиасы для Filament //ToDo
-        'variant_id' => $meta['id'],
-        'variant_name' => $meta['name'] . ' (' . __('Cycle Detected') . ')',
-        'product_slug' => $meta['slug'],
       ];
     }
 
@@ -219,11 +215,6 @@ class PipelineTreeService
             'child' => $childData,
             'static_meta' => $rule->static_meta,
             'fields' => $childrenTrees['fields'] ?? [],
-
-            // Алиасы для Filament
-            'variant_id' => $childData['id'] ?? '',
-            'variant_name' => $childData['name'] ?? '',
-            'product_slug' => $childData['slug'] ?? null,
           ];
         }
 
@@ -246,7 +237,8 @@ class PipelineTreeService
             'parent_type' => $entity->getMorphClass(),
             'role' => $roleCode,
             'pipeline_id' => $pipeline->id,
-            'type_code' => $slot->typeCode,
+            'target_type' => $slot->targetType,
+            'target_code' => $slot->targetCode,
           ]
         ];
 
@@ -304,7 +296,8 @@ class PipelineTreeService
               'parent_type' => $entity->getMorphClass(),
               'role' => $roleCode,
               'pipeline_id' => $pipeline->id,
-              'type_code' => $slot->typeCode,
+              'target_type' => $slot->targetType,
+              'target_code' => $slot->targetCode,
             ]
           ];
         }
@@ -321,16 +314,14 @@ class PipelineTreeService
       'is_valid' => $isNodeValid,
       'fields' => $fieldReports,
       'pipeline_industry' => $pipeline->industry ?? null,
-
-      // Алиасы для Filament
-      'variant_id' => $meta['id'],
-      'variant_name' => $meta['name'],
-      'product_slug' => $meta['slug'],
     ];
   }
 
   /**
    * Преобразует дерево связей в компактную карту bindings (EntityReference).
+   *
+   * @param array $node Узел, возвращенный analyzeNode / analyzeTree
+   * @return array<string, mixed>
    */
   public function extractBindings(array $node): array
   {
@@ -396,10 +387,13 @@ class PipelineTreeService
     return $bindings;
   }
 
+  /**
+   * Каскадное переключение активности элементов дерева.
+   */
   public function toggleTreeActiveStatus(array $node, bool $status): void
   {
-    $entityId = $node['id'] ?? ($node['variant_id'] ?? null);
-    $entityType = $node['type'] ?? 'product_variant';
+    $entityId = $node['id'] ?? null;
+    $entityType = $node['type'] ?? ET::PRODUCT_VARIANT;
 
     if ($entityId) {
       $morphClass = Relation::getMorphedModel($entityType) ?? $entityType;
@@ -437,8 +431,8 @@ class PipelineTreeService
 
     foreach ($slotsMap as $roles) {
       foreach ($roles as $slotDto) {
-        if (!empty($slotDto->typeCode)) {
-          $allChildren[] = $slotDto->typeCode;
+        if (!empty($slotDto->targetCode)) {
+          $allChildren[] = $slotDto->targetCode;
         }
       }
     }

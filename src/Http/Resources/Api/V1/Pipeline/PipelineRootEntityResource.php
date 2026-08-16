@@ -34,7 +34,7 @@ class PipelineRootEntityResource extends JsonResource
        * @var int
        * @example 165
        */
-      'id' => (int)$entity->getKey(),
+      'id' => (int) $entity->getKey(),
 
       /**
        * ID базового родителя (для SKU — ID базового товара, для записи — ID справочника).
