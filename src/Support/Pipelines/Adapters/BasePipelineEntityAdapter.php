@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Nicole\Box\Core\Support\Pipelines\Adapters;
 
+use Filament\Forms\Components\Field;
+use Filament\Forms\Components\Select;
 use Illuminate\Database\Eloquent\Model;
 
 abstract class BasePipelineEntityAdapter implements PipelineEntityAdapterInterface
@@ -50,7 +52,21 @@ abstract class BasePipelineEntityAdapter implements PipelineEntityAdapterInterfa
   }
 
   /**
-   * Вспомогательный метод добавления бейджа "Уже в цепочке".
+   * Универсальный базовый селект (переопределяется в конкретных адаптерах при необходимости)
+   */
+  public function getFormComponent(string $fieldName = 'entity_id', ?string $filterTypeCode = null, bool $multiple = false): Field
+  {
+    return Select::make($fieldName)
+      ->label($this->getLabel())
+      ->required()
+      ->multiple($multiple)
+      ->searchable()
+      ->allowHtml()
+      ->options(fn() => $this->getSelectOptions($filterTypeCode));
+  }
+
+  /**
+   * Вспомогательный метод добавления бейджа "Уже в цепочке"
    */
   protected function renderConfiguredBadge(string $html): string
   {
@@ -58,4 +74,5 @@ abstract class BasePipelineEntityAdapter implements PipelineEntityAdapterInterfa
     $withBadge = preg_replace('/(ID:\s*\d+)/', '$1 ' . $badge, $html);
     return "<div style='opacity: 0.5; filter: grayscale(80%);'>{$withBadge}</div>";
   }
+
 }

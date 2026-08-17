@@ -5,22 +5,22 @@ declare(strict_types=1);
 namespace Nicole\Box\Core\Importers;
 
 use Illuminate\Console\Command;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Str;
+use Nicole\Box\Core\Contracts\PipelineScenarioCompilerInterface;
 use Nicole\Box\Core\Importers\Contracts\ImportModuleInterface;
-use Nicole\Box\Core\Models\AttributeOption;
-use Nicole\Box\Core\Models\BindingRule;
 use Nicole\Box\Core\Models\Pipeline;
 use Nicole\Box\Core\Models\PipelineScenario;
 use Nicole\Box\Core\Models\Product;
-use Nicole\Box\Core\Models\ProductType;
-use Nicole\Box\Core\Models\ProductVariant;
-use Nicole\Box\Core\Services\Pipelines\BindingRuleCompilerService;
+use Nicole\Box\Core\Models\BindingRule;
 
 class PipelineImporter implements ImportModuleInterface
 {
-  protected array $productMap = [];
-  protected array $optionMap = [];
-  protected array $typeMap = [];
+  /**
+   * Универсальная кэш-карта всех сущностей в памяти: [entity_type => [external_code => id]]
+   * @var array<string, array<string, int>>
+   */
+  protected array $entityMaps = [];
 
   public function getName(): string
   {
@@ -29,21 +29,19 @@ class PipelineImporter implements ImportModuleInterface
 
   public function run(array $settings, array $data, Command $command): void
   {
-    $command->info('Старт импорта универсальных правил подбора ( Nicole Core )...');
+    $command->info('Start of importing universal selection rules (Nicole Core)...');
 
     $pipelinesData = $data['pipelines'] ?? [];
     $scenariosData = $data['pipeline_scenarios'] ?? [];
     $rulesData = $data['binding_rules'] ?? [];
 
     if (empty($pipelinesData)) {
-      $command->warn('  ⚠ Пропущено: Раздел pipelines отсутствует в import_data.json.');
+      $command->warn('Skipped: The pipelines section is missing in import_data.json.');
       return;
     }
 
-    $this->loadSystemMaps();
-
-    // 1. Импорт контейнеров пайплайнов
-    $command->line('Импорт контейнеров пайплайнов...');
+    // Импорт контейнеров пайплайнов
+    $command->line('Importing pipeline containers...');
     $pipelineIdMap = [];
     $bar = $command->getOutput()->createProgressBar(count($pipelinesData));
 
@@ -51,7 +49,7 @@ class PipelineImporter implements ImportModuleInterface
       $pipeline = Pipeline::updateOrCreate(
         ['code' => $plData['code']],
         [
-          'slug' => $plData['slug'] ?? Str::slug($plData['code']),
+          'slug' => $plData['slug'] ?? Str::slug((string)$plData['code']),
           'external_code' => $plData['external_code'] ?? null,
           'name' => $plData['name'],
           'description' => $plData['description'] ?? null,
@@ -69,11 +67,14 @@ class PipelineImporter implements ImportModuleInterface
     $bar->finish();
     $command->newLine();
 
-    // 2. Импорт сценариев подбора (pipeline_scenarios)
+    // Импорт сценариев подбора (pipeline_scenarios)
     if (!empty($scenariosData)) {
-      $command->line('Импорт сценариев и автоматическая компиляция правил...');
+      $command->line('Importing selection scenarios...');
       $scenariosBar = $command->getOutput()->createProgressBar(count($scenariosData));
-      $compiler = app(BindingRuleCompilerService::class);
+
+      $compiler = app()->bound(PipelineScenarioCompilerInterface::class)
+        ? app(PipelineScenarioCompilerInterface::class)
+        : null;
 
       foreach ($scenariosData as $scenData) {
         $pipelineId = null;
@@ -104,8 +105,9 @@ class PipelineImporter implements ImportModuleInterface
           ]
         );
 
-        // Автоматическая компиляция ui_state в плоские binding_rules
-        $compiler->compile($scenario);
+        if ($compiler) {
+          $compiler->compile($scenario);
+        }
 
         $scenariosBar->advance();
       }
@@ -113,9 +115,9 @@ class PipelineImporter implements ImportModuleInterface
       $command->newLine();
     }
 
-    // 3. Импорт статических правил связей (binding_rules)
+    // Импорт статических правил связей (binding_rules)
     if (!empty($rulesData)) {
-      $command->line('Импорт статических правил связей...');
+      $command->line('Importing static link rules...');
       $rulesBar = $command->getOutput()->createProgressBar(count($rulesData));
 
       foreach ($rulesData as $ruleData) {
@@ -165,14 +167,47 @@ class PipelineImporter implements ImportModuleInterface
       $command->newLine();
     }
 
-    $command->info('Импорт универсальных правил успешно завершен.');
+    $command->info('The import of universal rules has been successfully completed.');
   }
 
-  protected function loadSystemMaps(): void
+  /**
+   * Универсальный резолвинг морф-типа сущности через Relation::morphMap.
+   */
+  protected function resolveMorphClass(string $key): string
   {
-    $this->productMap = Product::pluck('id', 'external_code')->toArray();
-    $this->optionMap = AttributeOption::pluck('id', 'external_code')->toArray();
-    $this->typeMap = ProductType::pluck('id', 'external_code')->toArray();
+    $modelClass = Relation::getMorphedModel($key);
+
+    if ($modelClass && class_exists($modelClass)) {
+      return (new $modelClass())->getMorphClass();
+    }
+
+    return (new Product())->getMorphClass();
+  }
+
+  /**
+   * Универсальный поиск ID записи в памяти с ленивым авто-прогревом
+   */
+  protected function resolveModelId(string $key, string $extCode): ?int
+  {
+    if (empty($key) || empty($extCode)) {
+      return null;
+    }
+
+    // если карта для этой сущности еще не в памяти, загружаем ее одним запросом
+    if (!isset($this->entityMaps[$key])) {
+      $modelClass = Relation::getMorphedModel($key);
+
+      if ($modelClass && class_exists($modelClass)) {
+        $this->entityMaps[$key] = $modelClass::query()
+          ->whereNotNull('external_code')
+          ->pluck('id', 'external_code')
+          ->toArray();
+      } else {
+        $this->entityMaps[$key] = [];
+      }
+    }
+
+    return $this->entityMaps[$key][$extCode] ?? null;
   }
 
   protected function translateUiStateRecursive(mixed $obj): mixed
@@ -185,38 +220,14 @@ class PipelineImporter implements ImportModuleInterface
     }
 
     if (is_string($obj)) {
-      if (isset($this->productMap[$obj])) {
-        return $this->productMap[$obj];
-      }
-      if (isset($this->optionMap[$obj])) {
-        return $this->optionMap[$obj];
-      }
-      if (isset($this->typeMap[$obj])) {
-        return $this->typeMap[$obj];
+      foreach ($this->entityMaps as $map) {
+        if (isset($map[$obj])) {
+          return $map[$obj];
+        }
       }
     }
 
     return $obj;
-  }
-
-  protected function resolveMorphClass(string $key): string
-  {
-    return match ($key) {
-      'product_type' => (new ProductType())->getMorphClass(),
-      'product' => (new Product())->getMorphClass(),
-      'variant' => (new ProductVariant())->getMorphClass(),
-      default => (new Product())->getMorphClass(),
-    };
-  }
-
-  protected function resolveModelId(string $key, string $extCode): ?int
-  {
-    return match ($key) {
-      'product_type' => $this->typeMap[$extCode] ?? null,
-      'product' => $this->productMap[$extCode] ?? null,
-      'variant' => ProductVariant::where('external_code', $extCode)->value('id'),
-      default => null,
-    };
   }
 
   protected function translateConditions(array $conditions): array
@@ -230,9 +241,8 @@ class PipelineImporter implements ImportModuleInterface
       if (str_starts_with($cond['var'] ?? '', 'parent.') && is_array($cond['val'] ?? null)) {
         $translatedVals = [];
         foreach ($cond['val'] as $val) {
-          if (isset($this->optionMap[$val])) {
-            $translatedVals[] = $this->optionMap[$val];
-          }
+          $optionId = $this->resolveModelId('attribute_option', (string)$val);
+          $translatedVals[] = $optionId ?? $val;
         }
         $cond['val'] = $translatedVals;
       }
@@ -241,4 +251,5 @@ class PipelineImporter implements ImportModuleInterface
 
     return ['and' => $translatedAnd];
   }
+
 }

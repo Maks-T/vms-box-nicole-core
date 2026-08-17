@@ -5,29 +5,31 @@ declare(strict_types=1);
 namespace Nicole\Box\Core\Support\Pipelines;
 
 use Closure;
+use Filament\Forms\Components\Field;
+use Filament\Forms\Components\Select;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Nicole\Box\Core\Support\Pipelines\Adapters\PipelineEntityAdapterInterface;
 
 /**
- * Универсальный динамический диспетчер адаптеров сущностей пайплайна.
+ * Универсальный динамический диспетчер адаптеров сущностей пайплайна
  */
 class PipelineEntityResolver
 {
   /**
-   * Зарегистрированные адаптеры, сгруппированные по morph_type и имени класса.
+   * Зарегистрированные адаптеры, сгруппированные по morph_type и имени класса
    * @var array<string, PipelineEntityAdapterInterface>
    */
   protected static array $adapters = [];
 
   /**
-   * Реестр целевых типов для слотов схемы (Target Entities).
+   * Реестр целевых типов для слотов схемы
    * @var array<string, array{label: string, options_loader: Closure}>
    */
   protected static array $targetEntities = [];
 
   /**
-   * Регистрация адаптера сущности.
+   * Регистрация адаптера сущности
    */
   public static function registerAdapter(PipelineEntityAdapterInterface $adapter): void
   {
@@ -36,7 +38,7 @@ class PipelineEntityResolver
   }
 
   /**
-   * Регистрация целевой сущности для слотов схемы (Target Entity).
+   * Регистрация целевой сущности для слотов схемы
    */
   public static function registerTargetEntity(string $type, string $label, Closure $optionsLoader): void
   {
@@ -61,7 +63,7 @@ class PipelineEntityResolver
     $types = [];
     foreach (static::$adapters as $key => $adapter) {
       if ($key === $adapter->getMorphType()) {
-        $types[$adapter->getMorphType()] = $adapter->getLabel();
+        $types[$adapter->getMorphType()] = __($adapter->getLabel());
       }
     }
     return $types;
@@ -84,6 +86,28 @@ class PipelineEntityResolver
   {
     $adapter = static::getAdapter($entityType);
     return $adapter ? $adapter->getSelectOptions($filterTypeCode, $configuredIds) : [];
+  }
+
+  /**
+   * Динамическое создание UI-компонента формы через зарегистрированный адаптер
+   */
+  public static function resolveSelectComponent(
+    string  $entityType,
+    string  $fieldName = 'entity_id',
+    ?string $filterTypeCode = null,
+    bool    $multiple = false
+  ): Field
+  {
+    $adapter = static::getAdapter($entityType);
+
+    if ($adapter) {
+      return $adapter->getFormComponent($fieldName, $filterTypeCode, $multiple);
+    }
+
+    return Select::make($fieldName)
+      ->required()
+      ->multiple($multiple)
+      ->searchable();
   }
 
   public static function resolveParentId(Model $entity): ?int
@@ -115,4 +139,5 @@ class PipelineEntityResolver
     $adapter = static::getAdapter($entity);
     return $adapter ? $adapter->getTypeCode($entity) : (string)($entity->code ?? $entity->getMorphClass());
   }
+
 }

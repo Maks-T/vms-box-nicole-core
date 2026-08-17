@@ -19,6 +19,7 @@ use Illuminate\Database\Eloquent\Relations\Relation;
 use Nicole\Box\Core\Filament\Clusters\Pipelines\Schemas\PipelineRootForm;
 use Nicole\Box\Core\Models\BindingRule;
 use Nicole\Box\Core\Models\ProductVariant;
+use Nicole\Box\Core\Support\Constants\EntityType as ET;
 use Nicole\Box\Core\Support\Pipelines\PipelineEntityResolver;
 
 class ConfigureNodeAction extends Action
@@ -33,14 +34,14 @@ class ConfigureNodeAction extends Action
     if (!empty($arguments['entity_id'])) {
       return [
         'id' => (int)$arguments['entity_id'],
-        'type' => (string)($arguments['entity_type'] ?? (new ProductVariant())->getMorphClass()),
+        'type' => (string)($arguments['entity_type'] ?? ET::PRODUCT_VARIANT),
       ];
     }
 
     if (!empty($arguments['variant_id'])) {
       return [
         'id' => (int)$arguments['variant_id'],
-        'type' => (new ProductVariant())->getMorphClass(),
+        'type' => ET::PRODUCT_VARIANT,
       ];
     }
 
@@ -54,7 +55,7 @@ class ConfigureNodeAction extends Action
       }
     }
 
-    return ['id' => null, 'type' => (new ProductVariant())->getMorphClass()];
+    return ['id' => null, 'type' => ET::PRODUCT_VARIANT];
   }
 
   protected function setUp(): void
@@ -79,7 +80,7 @@ class ConfigureNodeAction extends Action
         $virtualMeta = $arguments['virtual_meta'] ?? [];
         if (!empty($virtualMeta)) {
           return [
-            'child_type' => (new ProductVariant())->getMorphClass(),
+            'child_type' => ET::PRODUCT_VARIANT,
             'child_id' => null,
             'quantity_formula' => '1',
             'static_meta' => [],
@@ -100,7 +101,7 @@ class ConfigureNodeAction extends Action
               Select::make('child_type')
                 ->label(__('Entity Type'))
                 ->options(fn() => PipelineEntityResolver::getAvailableEntityTypes())
-                ->default((new ProductVariant())->getMorphClass())
+                ->default(ET::PRODUCT_VARIANT)
                 ->required()
                 ->live()
                 ->afterStateUpdated(fn(Set $set) => $set('child_id', null))
@@ -112,10 +113,10 @@ class ConfigureNodeAction extends Action
                 ->searchable()
                 ->allowHtml()
                 ->options(function (Get $get) use ($virtualMeta) {
-                  $childType = (string)($get('child_type') ?? (new ProductVariant())->getMorphClass());
+                  $childType = (string)($get('child_type') ?? ET::PRODUCT_VARIANT);
                   return PipelineEntityResolver::getEntitySelectOptions(
                     $childType,
-                    $virtualMeta['type_code'] ?? null
+                    $virtualMeta['target_code'] ?? ($virtualMeta['type_code'] ?? null)
                   );
                 })
                 ->native(false),
@@ -148,7 +149,7 @@ class ConfigureNodeAction extends Action
       ->action(function (array $data, array $arguments) {
         $virtualMeta = $arguments['virtual_meta'] ?? [];
         if (!empty($virtualMeta)) {
-          $childType = (string)($data['child_type'] ?? (new ProductVariant())->getMorphClass());
+          $childType = (string)($data['child_type'] ?? ET::PRODUCT_VARIANT);
           $childId = (int)$data['child_id'];
 
           BindingRule::create([

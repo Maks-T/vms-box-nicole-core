@@ -13,26 +13,25 @@ use Nicole\Box\Core\Support\Constants\EntityType as ET;
  */
 readonly class PipelineSlotDto implements Arrayable, JsonSerializable
 {
+  /**
+   * @param string|array<string, string> $labelKey Строка или мультиязычный массив переводов
+   */
   public function __construct(
-    public string  $labelKey,
-    public string  $targetType = ET::PRODUCT_TYPE,
-    public ?string $targetCode = null,
-    public bool    $isRequired = false,
-    public bool    $isMultiple = false,
-    public ?string $roleCode = null,
+    public string|array $labelKey,
+    public string       $targetType = ET::PRODUCT_TYPE,
+    public ?string      $targetCode = null,
+    public bool         $isRequired = false,
+    public bool         $isMultiple = false,
+    public ?string      $roleCode = null,
   )
   {
   }
 
-  /**
-   * Фабричный метод создания DTO из массива без побочных эффектов и обращений к БД.
-   */
   public static function fromArray(array $data, ?string $fallbackRoleCode = null): self
   {
     $rawCode = $data['target_code'] ?? ($data['type_code'] ?? null);
     $rawTargetType = (string)($data['target_type'] ?? ($data['entity_type'] ?? ''));
 
-    // Определение target_type и нормализация скаляров
     if ($rawTargetType === '') {
       $targetType = ($rawCode === null || $rawCode === '' || $rawCode === 'general')
         ? ET::SCALAR
@@ -45,14 +44,29 @@ readonly class PipelineSlotDto implements Arrayable, JsonSerializable
       ? null
       : (string)$rawCode;
 
+    $labelKey = $data['label_key'] ?? '';
+
     return new self(
-      labelKey: (string)($data['label_key'] ?? ''),
+      labelKey: $labelKey,
       targetType: $targetType,
       targetCode: $targetCode,
       isRequired: (bool)($data['is_required'] ?? false),
       isMultiple: (bool)($data['is_multiple'] ?? false),
       roleCode: isset($data['role_code']) ? (string)$data['role_code'] : $fallbackRoleCode,
     );
+  }
+
+  /**
+   * Извлечение локализованной строки для API.
+   */
+  public function getLocalizedLabel(?string $locale = null): string
+  {
+    if (is_string($this->labelKey)) {
+      return $this->labelKey;
+    }
+
+    $locale ??= app()->getLocale();
+    return (string)($this->labelKey[$locale] ?? ($this->labelKey['ru'] ?? head($this->labelKey)));
   }
 
   /**
@@ -69,7 +83,7 @@ readonly class PipelineSlotDto implements Arrayable, JsonSerializable
   public function toArray(): array
   {
     return [
-      'label_key' => $this->labelKey,
+      'label_key' => $this->getLocalizedLabel(),
       'target_type' => $this->targetType,
       'target_code' => $this->targetCode,
       'is_required' => $this->isRequired,
@@ -81,4 +95,5 @@ readonly class PipelineSlotDto implements Arrayable, JsonSerializable
   {
     return $this->toArray();
   }
+
 }

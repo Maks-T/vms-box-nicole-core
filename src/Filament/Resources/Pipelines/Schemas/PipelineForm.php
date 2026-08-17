@@ -13,206 +13,175 @@ use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
-use Nicole\Box\Core\DTO\Pipeline\PipelineSlotDto;
 use Nicole\Box\Core\Filament\Forms\Tabs\SalesChannelsTab;
 use Nicole\Box\Core\Models\ComplexDictionary;
-use Nicole\Box\Core\Models\Pipeline;
 use Nicole\Box\Core\Models\ProductType;
-use Nicole\Box\Core\Services\Calculator\PipelineTreeService;
+use Nicole\Box\Core\Support\Constants\EntityType as ET;
+use Nicole\Box\Core\Support\Pipelines\PipelineEntityResolver;
 use Nicole\Box\Core\Support\Pipelines\PipelineRoleResolver;
+use Nicole\Box\Core\Support\Pipelines\PipelineSchemaTransformer;
 
 class PipelineForm
 {
   public static function configure(Schema $schema): Schema
   {
-    return $schema->components(function (?Model $record) {
-      $pipelineCode = $record instanceof Pipeline ? $record->code : '';
+    return $schema->components([
+      Tabs::make('PipelineTabs')
+        ->tabs([
+          Tabs\Tab::make(__('General Information'))
+            ->icon('heroicon-o-information-circle')
+            ->schema([
 
-      $treeService = app(PipelineTreeService::class);
-      $pipelineSlots = $treeService->getPipelineSlots((string)$pipelineCode, $record);
-      $parentTypeCodes = collect($pipelineSlots)->keys()->toArray();
+              Section::make()
+                ->schema([
+                  TextInput::make('name')
+                    ->label(__('Name'))
+                    ->required()
+                    ->live(onBlur: true)
+                    ->afterStateUpdated(function ($state, callable $set, $livewire) {
+                      if ($livewire instanceof \Filament\Resources\Pages\CreateRecord) {
+                        $set('code', Str::slug((string)$state, '_'));
+                        $set('slug', Str::slug((string)$state, '-'));
+                      }
+                    })
+                    ->translatable(),
 
-      if (empty($parentTypeCodes)) {
-        $parentTypeCodes = ProductType::pluck('code')->toArray();
-      }
+                  TextInput::make('code')
+                    ->label(__('Code'))
+                    ->required()
+                    ->unique(table: 'pipelines', column: 'code', ignoreRecord: true)
+                    ->alphaDash(),
 
-      $sections = [];
-      $locale = app()->getLocale();
+                  TextInput::make('slug')
+                    ->label(__('Slug'))
+                    ->required()
+                    ->unique(table: 'pipelines', column: 'slug', ignoreRecord: true)
+                    ->alphaDash()
+                    ->helperText(__('Used for clean URLs (SEO)')),
 
-      foreach ($parentTypeCodes as $parentTypeCode) {
+                  TextInput::make('sort_order')
+                    ->label(__('Sort Order'))
+                    ->numeric()
+                    ->default(0),
 
-        $productType = ProductType::where('code', $parentTypeCode)->first();
-        $dictionary = ComplexDictionary::where('code', $parentTypeCode)->first();
+                  Toggle::make('is_active')
+                    ->label(__('Is Active'))
+                    ->default(true)
+                    ->columnSpanFull(),
+                ])
+                ->columns(2),
+            ]),
 
-        $title = $productType?->getTranslation('name', $locale)
-          ?? ($dictionary?->getTranslation('name', $locale) ?? ucfirst($parentTypeCode));
+          Tabs\Tab::make(__('Pipeline Schema Builder'))
+            ->icon('heroicon-o-rectangle-group')
+            ->schema([
+              Section::make(__('Pipeline Schema Builder'))
+                ->description(__('Configure parent product types and their allowed slots / dependencies'))
+                ->schema([
 
-        $sections[] = Section::make($title)
-          ->icon('heroicon-o-folder-open')
-          ->collapsed()
-          ->schema([
-            Repeater::make("schema.{$parentTypeCode}")
-              ->hiddenLabel()
-              ->formatStateUsing(function ($state) {
-                if (!is_array($state)) {
-                  return [];
-                }
+                  Repeater::make('schema')
+                    ->hiddenLabel()
+                    ->addActionLabel(__('Add Parent Group'))
+                    ->reorderable()
+                    ->collapsible()
+                    ->collapsed()
+                    ->defaultItems(0)
+                    ->itemLabel(fn(array $state) => PipelineSchemaTransformer::resolveGroupLabel($state))
+                    ->formatStateUsing(fn($state) => PipelineSchemaTransformer::toFormState($state))
+                    ->dehydrateStateUsing(fn($state) => PipelineSchemaTransformer::toDatabase($state))
+                    ->schema([
+                      // Выбор родительской группы
+                      Select::make('parent_code')
+                        ->label(__('Parent Group / Type'))
+                        ->options(function () {
+                          $locale = app()->getLocale();
+                          $productTypes = ProductType::where('is_active', true)
+                            ->get()
+                            ->mapWithKeys(fn($t) => [$t->code => $t->getTranslation('name', $locale) ?: $t->name])
+                            ->toArray();
 
-                $formatted = [];
-                foreach ($state as $key => $item) {
-                  if (is_array($item)) {
-                    if (is_string($key) && empty($item['role_code'])) {
-                      $item['role_code'] = $key;
-                    }
+                          $dictionaries = ComplexDictionary::where('is_active', true)
+                            ->get()
+                            ->mapWithKeys(fn($d) => [$d->code => $d->getTranslation('name', $locale) ?: $d->name])
+                            ->toArray();
 
-                    $typeCode = $item['type_code'] ?? 'general';
-                    if ($typeCode === 'general') {
-                      $item['target_entity_type'] = 'general';
-                    } elseif (ComplexDictionary::where('code', $typeCode)->exists()) {
-                      $item['target_entity_type'] = 'complex_dictionary';
-                    } else {
-                      $item['target_entity_type'] = 'product_type';
-                    }
+                          return $productTypes + $dictionaries;
+                        })
+                        ->searchable()
+                        ->required()
+                        ->live()
+                        ->native(false)
+                        ->columnSpanFull(),
 
-                    $formatted[] = $item;
-                  }
-                }
-                return $formatted;
-              })
-              ->dehydrateStateUsing(function ($state) {
-                if (!is_array($state)) {
-                  return [];
-                }
+                      // Вложенный репитер слотов
+                      Repeater::make('slots')
+                        ->label(__('Slots & Dependencies'))
+                        ->addActionLabel(__('Add Slot'))
+                        ->reorderable()
+                        ->collapsible()
+                        ->collapsed(false)
+                        ->defaultItems(0)
+                        ->schema([
+                          Select::make('role_code')
+                            ->label(__('Role Code'))
+                            ->options(fn() => PipelineRoleResolver::getOptions())
+                            ->searchable()
+                            ->required()
+                            ->live()
+                            ->afterStateUpdated(function ($state, Set $set) {
+                              if (!$state) return;
 
-                $result = [];
-                foreach ($state as $item) {
-                  $roleCode = $item['role_code'] ?? null;
-                  if ($roleCode) {
+                              $label = PipelineRoleResolver::getLabel($state);
+                              $set('label_key', ['ru' => $label, 'en' => $label]);
 
-                    if (($item['target_entity_type'] ?? '') === 'general') {
-                      $item['type_code'] = 'general';
-                    }
-                    unset($item['target_entity_type']);
+                              $defaultTarget = PipelineRoleResolver::getDefaultTarget($state);
+                              if ($defaultTarget) {
+                                $set('target_type', $defaultTarget['target_type'] ?? ET::PRODUCT_TYPE);
+                                $set('target_code', $defaultTarget['target_code'] ?? null);
+                              }
+                            })
+                            ->native(false),
 
-                    $result[$roleCode] = $item;
-                  }
-                }
-                return $result;
-              })
-              ->schema([
-                TextInput::make('role_code')
-                  ->label(__('Role Code'))
-                  ->required()
-                  ->alphaDash()
-                  ->datalist(fn() => array_keys(PipelineRoleResolver::getOptions())),
+                          TextInput::make('label_key')
+                            ->label(__('Label Key (e.g. Start Clip)'))
+                            ->required()
+                            ->translatable(),
 
-                TextInput::make('label_key')
-                  ->label(__('Label Key (e.g. Start Clip)'))
-                  ->required()
-                  ->translatable(),
+                          Select::make('target_type')
+                            ->label(__('Target Entity'))
+                            ->options(fn() => PipelineEntityResolver::getTargetEntityOptions())
+                            ->default(ET::PRODUCT_TYPE)
+                            ->required()
+                            ->live()
+                            ->afterStateUpdated(fn(Set $set) => $set('target_code', null))
+                            ->native(false),
 
-                Select::make('target_entity_type')
-                  ->label(__('Target Entity'))
-                  ->options([
-                    'product_type' => __('Product Type'),
-                    'complex_dictionary' => __('Complex Dictionary'),
-                    'general' => __('Technical Parameter (Scalar)'),
-                  ])
-                  ->default('product_type')
-                  ->required()
-                  ->live()
-                  ->afterStateUpdated(fn(Set $set) => $set('type_code', null))
-                  ->native(false),
+                          Select::make('target_code')
+                            ->label(__('Target Code'))
+                            ->required(fn(Get $get) => $get('target_type') !== ET::SCALAR)
+                            ->visible(fn(Get $get) => $get('target_type') !== ET::SCALAR)
+                            ->options(fn(Get $get) => PipelineEntityResolver::getTargetCodeOptions($get('target_type')))
+                            ->searchable()
+                            ->native(false),
 
-                Select::make('type_code')
-                  ->label(__('Target Code'))
-                  ->required(fn(Get $get) => $get('target_entity_type') !== 'general')
-                  ->visible(fn(Get $get) => $get('target_entity_type') !== 'general')
-                  ->options(function (Get $get) {
-                    $targetType = $get('target_entity_type') ?? 'product_type';
+                          Toggle::make('is_required')
+                            ->label(__('Is Required'))
+                            ->default(false),
 
-                    if ($targetType === 'complex_dictionary') {
-                      return ComplexDictionary::where('is_active', true)->pluck('name', 'code')->toArray();
-                    }
+                          Toggle::make('is_multiple')
+                            ->label(__('Is Multiple'))
+                            ->default(false),
+                        ])
+                        ->columns(6)
+                        ->columnSpanFull()
+                    ])
+                ])
+            ]),
 
-                    return ProductType::where('is_active', true)->pluck('name', 'code')->toArray();
-                  })
-                  ->searchable()
-                  ->native(false),
-
-                Toggle::make('is_required')
-                  ->label(__('Is Required'))
-                  ->default(false),
-
-                Toggle::make('is_multiple')
-                  ->label(__('Is Multiple (Folder)'))
-                  ->default(false),
-              ])
-              ->columns(6)
-              ->addActionLabel(__('Add Slot'))
-          ]);
-      }
-
-      return [
-        Tabs::make('PipelineTabs')
-          ->tabs([
-            Tabs\Tab::make(__('General Information'))
-              ->icon('heroicon-o-information-circle')
-              ->schema([
-                Section::make()
-                  ->schema([
-                    TextInput::make('name')
-                      ->label(__('Name'))
-                      ->required()
-                      ->live(onBlur: true)
-                      ->afterStateUpdated(function ($state, callable $set, $livewire) {
-                        if ($livewire instanceof \Filament\Resources\Pages\CreateRecord) {
-                          $set('code', Str::slug($state, '_'));
-                          $set('slug', Str::slug($state, '-'));
-                        }
-                      })
-                      ->translatable(),
-
-                    TextInput::make('code')
-                      ->label(__('Code'))
-                      ->required()
-                      ->unique(table: 'pipelines', column: 'code', ignoreRecord: true)
-                      ->alphaDash(),
-
-                    TextInput::make('slug')
-                      ->label(__('Slug'))
-                      ->required()
-                      ->unique(table: 'pipelines', column: 'slug', ignoreRecord: true)
-                      ->alphaDash()
-                      ->helperText(__('Used for clean URLs (SEO)')),
-
-                    TextInput::make('sort_order')
-                      ->label(__('Sort Order'))
-                      ->numeric()
-                      ->default(0),
-
-                    Toggle::make('is_active')
-                      ->label(__('Is Active'))
-                      ->default(true)
-                      ->columnSpanFull(),
-                  ])
-                  ->columns(2),
-              ]),
-
-            Tabs\Tab::make(__('Pipeline Schema Builder'))
-              ->icon('heroicon-o-rectangle-group')
-              ->schema([
-                Section::make(__('Pipeline Schema Builder'))
-                  ->description(__('Configure parent product types and their allowed slots / dependencies'))
-                  ->schema($sections)
-              ]),
-
-            SalesChannelsTab::make('pipeline'),
-          ])
-          ->columnSpanFull()
-      ];
-    });
+          SalesChannelsTab::make('pipeline'),
+        ])
+        ->columnSpanFull()
+    ]);
   }
 }

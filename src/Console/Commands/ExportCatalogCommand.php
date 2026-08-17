@@ -23,8 +23,8 @@ use Nicole\Box\Core\Models\BindingRule;
 
 class ExportCatalogCommand extends Command
 {
-  protected $signature = 'vms:export 
-                            {--settings=import/export_settings.json : Путь для сохранения настроек} 
+  protected $signature = 'vms:export
+                            {--settings=import/export_settings.json : Путь для сохранения настроек}
                             {--data=import/export_data.json : Путь для сохранения данных каталога}
                             {--services=import/export_services.json : Путь для сохранения услуг}';
 
@@ -149,7 +149,7 @@ class ExportCatalogCommand extends Command
     ])->toArray();
 
     $data['products'] = Product::query()  //Product::where('catalog_type', CatalogType::PRODUCT)
-      ->with(['type', 'category', 'unit', 'attributeValues.attribute', 'variants.attributeValues.attribute', 'variants.prices.type', 'variants.stocks.warehouse'])
+    ->with(['type', 'category', 'unit', 'attributeValues.attribute', 'variants.attributeValues.attribute', 'variants.prices.type', 'variants.stocks.warehouse'])
       ->get()->map(fn($p) => $this->mapProduct($p))
       ->toArray();
 
@@ -232,13 +232,9 @@ class ExportCatalogCommand extends Command
     return $eav;
   }
 
-  protected function resolveTypeKey($morphClass): string
+  protected function resolveTypeKey(?string $morphClass): ?string
   {
-    return match ($morphClass) {
-      'product_type' => 'product_type',
-      'product_variant' => 'variant',
-      default => 'product',
-    };
+    return $morphClass;
   }
 
   protected function exportServices(): void //ToDO

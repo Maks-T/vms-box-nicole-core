@@ -11,17 +11,15 @@ use Filament\Schemas\Schema;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\DB;
 use Nicole\Box\Core\DTO\Pipeline\PipelineSlotDto;
-use Nicole\Box\Core\Filament\Forms\Components\ProductSelect;
 use Nicole\Box\Core\Models\BindingRule;
 use Nicole\Box\Core\Models\Pipeline;
-use Nicole\Box\Core\Models\Product;
-use Nicole\Box\Core\Models\ProductVariant;
 use Nicole\Box\Core\Services\Calculator\PipelineTreeService;
+use Nicole\Box\Core\Support\Constants\EntityType as ET;
 use Nicole\Box\Core\Support\Pipelines\PipelineEntityResolver;
 
 class PipelineRootForm
 {
-  public static function fill(int $entityId, string $pipelineCode, string $entityType = 'product_variant'): array
+  public static function fill(int $entityId, string $pipelineCode, string $entityType = ET::PRODUCT_VARIANT): array
   {
     $pipeline = Pipeline::where('code', $pipelineCode)->first();
     if (!$pipeline) {
@@ -29,8 +27,11 @@ class PipelineRootForm
     }
 
     $morphClass = Relation::getMorphedModel($entityType) ?? $entityType;
-    $rules = BindingRule::where('parent_type', $morphClass)
+
+    // Ищем правила и по короткому ключу ('product_variant'), и по полному имени класса
+    $rules = BindingRule::whereIn('parent_type', array_unique([$entityType, $morphClass]))
       ->where('parent_id', $entityId)
+      ->with('child')
       ->get();
 
     $formValues = [];
@@ -45,19 +46,22 @@ class PipelineRootForm
 
     foreach ($slots as $roleCode => $slot) {
       $slotRules = $rules->where('role', $roleCode);
-      $isScalar = empty($slot->typeCode) || $slot->typeCode === 'general';
+      $isScalar = empty($slot->targetCode) || $slot->targetType === ET::SCALAR;
 
       if ($isScalar) {
-        $formValues[$roleCode] = !empty($slotRules->first()?->static_meta)
-          ? head($slotRules->first()->static_meta)
-          : null;
+        $firstRule = $slotRules->first();
+        $staticMeta = $firstRule?->static_meta ?? [];
+        $formValues[$roleCode] = is_array($staticMeta) ? ($staticMeta[$roleCode] ?? head($staticMeta)) : $staticMeta;
       } else {
-        $activeSlotRules = $slotRules->where('pipeline_id', $pipeline->id);
         if ($slot->isMultiple) {
-          $formValues[$roleCode] = $activeSlotRules->map(fn ($rule) => $rule->child?->product_id ?? $rule->child_id)->filter()->unique()->toArray();
+          $formValues[$roleCode] = $slotRules
+            ->map(fn($rule) => $rule->child_id)
+            ->filter()
+            ->unique()
+            ->values()
+            ->toArray();
         } else {
-          $child = $activeSlotRules->first()?->child;
-          $formValues[$roleCode] = $child instanceof ProductVariant ? $child->product_id : $child?->id;
+          $formValues[$roleCode] = $slotRules->first()?->child_id;
         }
       }
     }
@@ -65,7 +69,7 @@ class PipelineRootForm
     return $formValues;
   }
 
-  public static function configure(Schema $schema, string $pipelineCode, ?int $entityId = null, string $entityType = 'product_variant'): Schema
+  public static function configure(Schema $schema, string $pipelineCode, ?int $entityId = null, string $entityType = ET::PRODUCT_VARIANT): Schema
   {
     $typeCode = 'general';
     if ($entityId) {
@@ -84,25 +88,24 @@ class PipelineRootForm
     $formFields = [];
 
     foreach ($slots as $roleCode => $slot) {
-      $isScalar = empty($slot->typeCode) || $slot->typeCode === 'general';
+      $isScalar = empty($slot->targetCode) || $slot->targetType === ET::SCALAR;
       $displayLabel = $slot->labelKey;
+      $displayTitle = is_array($displayLabel) ? ($displayLabel[app()->getLocale()] ?? head($displayLabel)) : $displayLabel;
 
       if ($isScalar) {
         $formFields[] = TextInput::make($roleCode)
-          ->label($displayLabel)
+          ->label((string)$displayTitle)
           ->numeric()
           ->required($slot->isRequired);
       } else {
-        $formFields[] = ProductSelect::make($roleCode)
-          ->label($displayLabel)
-          ->multiple($slot->isMultiple)
-          ->options(function () use ($slot) {
-            return Product::query()
-              ->whereHas('type', fn ($q) => $q->where('code', $slot->typeCode))
-              ->get()
-              ->mapWithKeys(fn ($p) => [$p->id => ProductSelect::renderProductOption($p)])
-              ->toArray();
-          })
+        // Динамический селектор под целевой тип сущности слота (Товар, Вариант, Справочник)
+        $formFields[] = PipelineEntityResolver::resolveSelectComponent(
+          entityType: $slot->targetType === ET::PRODUCT_TYPE ? ET::PRODUCT_VARIANT : $slot->targetType,
+          fieldName: $roleCode,
+          filterTypeCode: $slot->targetCode,
+          multiple: $slot->isMultiple
+        )
+          ->label((string)$displayTitle)
           ->required($slot->isRequired);
       }
     }
@@ -112,7 +115,7 @@ class PipelineRootForm
     ]);
   }
 
-  public static function save(array $data, int $entityId, string $pipelineCode, string $entityType = 'product_variant'): void
+  public static function save(array $data, int $entityId, string $pipelineCode, string $entityType = ET::PRODUCT_VARIANT): void
   {
     $pipeline = Pipeline::where('code', $pipelineCode)->first();
     if (!$pipeline) {
@@ -123,88 +126,93 @@ class PipelineRootForm
     $entity = class_exists($morphClass) ? $morphClass::find($entityId) : null;
     $typeCode = $entity ? PipelineEntityResolver::resolveTypeCode($entity) : 'general';
 
+    // Получаем канонический morph-ключ родителя
+    $parentMorphType = class_exists($morphClass) ? (new $morphClass())->getMorphClass() : $entityType;
+
     $treeService = app(PipelineTreeService::class);
     $pipelineSlots = $treeService->getPipelineSlots($pipelineCode);
     /** @var array<string, PipelineSlotDto> $slots */
     $slots = $pipelineSlots[$typeCode] ?? [];
 
-    DB::transaction(function () use ($data, $entityId, $morphClass, $pipeline, $slots) {
+    DB::transaction(function () use ($data, $entityId, $morphClass, $parentMorphType, $pipeline, $slots) {
       foreach ($slots as $roleCode => $slot) {
         $inputValue = $data[$roleCode] ?? null;
-        $isScalar = empty($slot->typeCode) || $slot->typeCode === 'general';
+        $isScalar = empty($slot->targetCode) || $slot->targetType === ET::SCALAR;
         $displayLabel = $slot->labelKey;
+        $displayTitle = is_array($displayLabel) ? ($displayLabel[app()->getLocale()] ?? head($displayLabel)) : $displayLabel;
 
         if ($slot->isMultiple) {
-          $submittedProductIds = is_array($inputValue) ? $inputValue : [];
-          $submittedVariantIds = ProductVariant::whereIn('product_id', $submittedProductIds)
-            ->where('is_default', true)
-            ->pluck('id')
-            ->toArray();
+          $submittedIds = is_array($inputValue) ? array_values(array_filter(array_map('intval', $inputValue))) : [];
+          $childType = $slot->targetType === ET::PRODUCT_TYPE ? ET::PRODUCT_VARIANT : $slot->targetType;
+          $childClass = Relation::getMorphedModel($childType);
+          $childMorphType = ($childClass && class_exists($childClass)) ? (new $childClass())->getMorphClass() : $childType;
 
-          BindingRule::where('parent_type', $morphClass)
+          // Удаляем старые отвязанные связи
+          BindingRule::whereIn('parent_type', array_unique([$morphClass, $parentMorphType]))
             ->where('parent_id', $entityId)
-            ->where('pipeline_id', $pipeline->id)
             ->where('role', $roleCode)
-            ->whereNotIn('child_id', $submittedVariantIds)
+            ->whereNotIn('child_id', $submittedIds)
             ->delete();
 
-          foreach ($submittedVariantIds as $childVariantId) {
+          // Сохраняем новые привязанные элементы
+          foreach ($submittedIds as $childId) {
             BindingRule::updateOrCreate([
-              'pipeline_id' => $pipeline->id,
-              'parent_type' => $morphClass,
+              'parent_type' => $parentMorphType,
               'parent_id' => $entityId,
               'role' => $roleCode,
-              'child_type' => (new ProductVariant())->getMorphClass(),
-              'child_id' => $childVariantId,
+              'child_type' => $childMorphType,
+              'child_id' => $childId,
             ], [
-              'external_code' => 'rule_' . md5($pipeline->id . $entityId . $childVariantId . $roleCode),
-              'name' => __('Link') . ' ' . $displayLabel,
+              'pipeline_id' => $pipeline->id,
+              'external_code' => 'rule_' . md5($pipeline->id . $entityId . $childId . $roleCode),
+              'name' => __('Link') . ' ' . $displayTitle,
               'is_required' => $slot->isRequired,
             ]);
           }
         } else {
           if ($isScalar) {
-            if (empty($inputValue)) {
-              BindingRule::where('parent_type', $morphClass)
+            if ($inputValue === null || $inputValue === '') {
+              BindingRule::whereIn('parent_type', array_unique([$morphClass, $parentMorphType]))
                 ->where('parent_id', $entityId)
                 ->where('role', $roleCode)
                 ->delete();
             } else {
               BindingRule::updateOrCreate([
-                'parent_type' => $morphClass,
+                'parent_type' => $parentMorphType,
                 'parent_id' => $entityId,
                 'role' => $roleCode,
               ], [
-                'external_code' => 'rule_' . md5($entityId . $inputValue . $roleCode),
                 'pipeline_id' => $pipeline->id,
-                'name' => __('Parameter') . ' ' . $displayLabel,
+                'external_code' => 'rule_' . md5($entityId . $inputValue . $roleCode),
+                'name' => __('Parameter') . ' ' . $displayTitle,
                 'child_type' => null,
                 'child_id' => null,
-                'static_meta' => [$roleCode => (string) $inputValue],
+                'static_meta' => [$roleCode => (string)$inputValue],
                 'is_required' => $slot->isRequired,
               ]);
             }
           } else {
             if (empty($inputValue)) {
-              BindingRule::where('parent_type', $morphClass)
+              BindingRule::whereIn('parent_type', array_unique([$morphClass, $parentMorphType]))
                 ->where('parent_id', $entityId)
-                ->where('pipeline_id', $pipeline->id)
                 ->where('role', $roleCode)
                 ->delete();
             } else {
-              $childProduct = Product::find($inputValue);
-              $childVariantId = $childProduct?->variants()->where('is_default', true)->value('id') ?? $inputValue;
+              $childId = (int)$inputValue;
+              $childType = $slot->targetType === ET::PRODUCT_TYPE ? ET::PRODUCT_VARIANT : $slot->targetType;
+              $childClass = Relation::getMorphedModel($childType);
+              $childMorphType = ($childClass && class_exists($childClass)) ? (new $childClass())->getMorphClass() : $childType;
 
               BindingRule::updateOrCreate([
-                'pipeline_id' => $pipeline->id,
-                'parent_type' => $morphClass,
+                'parent_type' => $parentMorphType,
                 'parent_id' => $entityId,
                 'role' => $roleCode,
               ], [
-                'external_code' => 'rule_' . md5($pipeline->id . $entityId . $childVariantId . $roleCode),
-                'name' => __('Link') . ' ' . $displayLabel,
-                'child_type' => (new ProductVariant())->getMorphClass(),
-                'child_id' => $childVariantId,
+                'pipeline_id' => $pipeline->id,
+                'external_code' => 'rule_' . md5($pipeline->id . $entityId . $childId . $roleCode),
+                'name' => __('Link') . ' ' . $displayTitle,
+                'child_type' => $childMorphType,
+                'child_id' => $childId,
                 'is_required' => $slot->isRequired,
               ]);
             }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nicole\Box\Core\Support\Pipelines\Adapters;
 
+use Filament\Forms\Components\Field;
 use Illuminate\Database\Eloquent\Model;
 use Nicole\Box\Core\Filament\Forms\Components\VariantSelect;
 use Nicole\Box\Core\Models\ProductVariant;
@@ -59,4 +60,20 @@ class ProductVariantAdapter extends BasePipelineEntityAdapter
       })
       ->toArray();
   }
+
+  public function getFormComponent(string $fieldName = 'entity_id', ?string $filterTypeCode = null, bool $multiple = false): Field
+  {
+    $component = VariantSelect::make($fieldName)
+      ->label($this->getLabel())
+      ->required()
+      ->multiple($multiple)
+      ->searchable();
+
+    if ($filterTypeCode) {
+      $component->options(fn() => $this->getSelectOptions($filterTypeCode));
+    }
+
+    return $component;
+  }
+
 }
