@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nicole\Box\Core\Traits;
 
+use Illuminate\Support\Facades\Storage;
 use Spatie\Image\Enums\Fit;
 use Spatie\MediaLibrary\InteractsWithMedia;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
@@ -49,8 +50,11 @@ trait HasNicoleMedia
       /** @var \Nicole\Box\Core\Models\ProductVariant|null $defaultVariant */
       $defaultVariant = $variants->sortByDesc('is_default')->first();
 
-      if ($defaultVariant && $defaultVariant->hasMedia()) {
-        return $defaultVariant->getPreviewDiskPath(false);
+      if ($defaultVariant) {
+        $variantPath = $defaultVariant->getPreviewDiskPath(false);
+        if ($variantPath) {
+          return $variantPath;
+        }
       }
     }
 
@@ -69,7 +73,7 @@ trait HasNicoleMedia
       return null;
     }
 
-    $url = \Illuminate\Support\Facades\Storage::disk('public')->url($diskPath);
+    $url = Storage::disk('public')->url($diskPath);
 
     return rtrim(config('app.url'), '/') . parse_url($url, PHP_URL_PATH);
   }
@@ -81,7 +85,7 @@ trait HasNicoleMedia
         ?? $this->getFirstMedia('preview'));
 
     if ($media) {
-      $url = \Illuminate\Support\Facades\Storage::disk('public')->url($media->getPathRelativeToRoot());
+      $url = Storage::disk('public')->url($media->getPathRelativeToRoot());
       return rtrim(config('app.url'), '/') . parse_url($url, PHP_URL_PATH);
     }
 

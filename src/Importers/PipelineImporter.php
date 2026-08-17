@@ -13,6 +13,7 @@ use Nicole\Box\Core\Models\Pipeline;
 use Nicole\Box\Core\Models\PipelineScenario;
 use Nicole\Box\Core\Models\Product;
 use Nicole\Box\Core\Models\BindingRule;
+use Nicole\Box\Core\Support\Constants\EntityType as ET;
 
 class PipelineImporter implements ImportModuleInterface
 {
@@ -210,6 +211,9 @@ class PipelineImporter implements ImportModuleInterface
     return $this->entityMaps[$key][$extCode] ?? null;
   }
 
+  /**
+   * Рекурсивный перевод всех external_code из ui_state сценария в числовые ID базы данных
+   */
   protected function translateUiStateRecursive(mixed $obj): mixed
   {
     if (is_array($obj)) {
@@ -220,10 +224,13 @@ class PipelineImporter implements ImportModuleInterface
     }
 
     if (is_string($obj)) {
-      foreach ($this->entityMaps as $map) {
-        if (isset($map[$obj])) {
-          return $map[$obj];
-        }
+      // Ищем соответствие в товарах, опциях атрибутов или типах товаров
+      $id = $this->resolveModelId(ET::PRODUCT, $obj)
+        ?? ($this->resolveModelId(ET::ATTRIBUTE_OPTION, $obj)
+          ?? $this->resolveModelId(ET::PRODUCT_TYPE, $obj));
+
+      if ($id !== null) {
+        return (int) $id;
       }
     }
 
