@@ -26,6 +26,7 @@ use Nicole\Box\Core\Models\ProductType;
 use Nicole\Box\Core\Support\Constants\CatalogType;
 use Njxqlus\Filament\Components\Forms\RelationManager as NjxqlusRelationManager;
 use Nicole\Box\Core\Filament\Resources\Products\RelationManagers\VariantsRelationManager;
+use Illuminate\Database\Eloquent\Model;
 
 class ProductForm
 {
@@ -39,6 +40,7 @@ class ProductForm
 
           Tabs\Tab::make(__('Product Variants'))
             ->icon('heroicon-o-tag')
+            ->visible(fn (?Model $record) => $record !== null)
             ->schema([
               NjxqlusRelationManager::make()
                 ->manager(VariantsRelationManager::class)
