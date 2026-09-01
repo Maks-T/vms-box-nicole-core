@@ -37,7 +37,7 @@ class OrderController extends Controller
    */
   public function index(Request $request): AnonymousResourceCollection
   {
-    $user = auth('sanctum')->user() ?? auth()->user();
+    $user = $request->user() ?? auth()->user();
     $limit = (int)$request->input('limit', $request->input('per_page', 20));
     $search = trim((string)$request->input('search', $request->input('q', '')));
 

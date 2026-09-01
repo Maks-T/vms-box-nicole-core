@@ -9,7 +9,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 use Nicole\Box\Core\Models\Order;
 
 /**
- * Легковесный ресурс заказа для списков, таблиц и истории расчетов в калькуляторе.
+ * Легковесный ресурс заказа для списков, таблиц и истории расчетов.
  *
  * @mixin Order
  */
@@ -17,7 +17,6 @@ class OrderListResource extends JsonResource
 {
   public function toArray(Request $request): array
   {
-    // Берем название первого изделия в заказе, либо дефолтное название
     $firstSectionTitle = $this->sections->first()?->title;
     $orderTitle = $firstSectionTitle ?: ('Расчет ' . $this->code);
 
@@ -25,11 +24,11 @@ class OrderListResource extends JsonResource
       'id' => $this->id,
       'code' => $this->code,
       'title' => $orderTitle,
-      'grand_total' => (float)$this->grand_total,
+      'grand_total' => (float) $this->grand_total,
       'currency' => $this->currency,
       'status' => $this->status ? [
         'slug' => $this->status->slug,
-        'name' => (string)$this->status->name,
+        'name' => (string) $this->status->name,
         'color' => $this->status->color,
       ] : null,
       'customer' => $this->customer ? [
@@ -39,7 +38,10 @@ class OrderListResource extends JsonResource
       'manager_name' => $this->manager?->name,
       'created_at' => $this->created_at->toIso8601String(),
       'created_at_formatted' => $this->created_at->format('d.m.Y H:i'),
+
+      // Ссылки на печатные формы
       'pdf_url' => url("/api/v1/orders/{$this->code}/pdf"),
+      'html_url' => url("/api/v1/orders/{$this->code}/html"),
     ];
   }
 }
