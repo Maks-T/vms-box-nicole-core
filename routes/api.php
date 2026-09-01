@@ -13,6 +13,9 @@ Route::get('/bootstrap', [BootstrapController::class, 'index']);
 Route::get('/{family}/filters', [FilterController::class, 'index']);
 Route::get('/{family}/products', [ProductController::class, 'index']);
 
+// Список всех заказов (быстрый список)
+Route::get('/orders', [OrderController::class, 'index']);
+
 // Сохранение заказа
 Route::post('/order/save', [OrderController::class, 'save']);
 

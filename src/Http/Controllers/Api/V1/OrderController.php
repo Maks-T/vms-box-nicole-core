@@ -9,6 +9,9 @@ use Nicole\Box\Core\Http\Requests\Api\V1\SaveOrderRequest;
 use Nicole\Box\Core\Http\Resources\Api\V1\OrderResource;
 use Nicole\Box\Core\Models\Order;
 use Nicole\Box\Core\Services\OrderService;
+use Nicole\Box\Core\Http\Resources\Api\V1\OrderListResource;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Http\Request;
 
 /**
  * @group Core: Заказы
@@ -25,6 +28,42 @@ class OrderController extends Controller
   public function __construct(OrderService $orderService)
   {
     $this->orderService = $orderService;
+  }
+
+  /**
+   * Получить список заказов / расчетов.
+   *
+   * Поддерживает фильтрацию по менеджеру/клиенту, поиск и пагинацию (временно отключено ограничение в парвках).
+   */
+  public function index(Request $request): AnonymousResourceCollection
+  {
+    $user = auth('sanctum')->user() ?? auth()->user();
+    $limit = (int)$request->input('limit', $request->input('per_page', 20));
+    $search = trim((string)$request->input('search', $request->input('q', '')));
+
+    $query = Order::query()
+      ->with(['customer', 'status', 'sections', 'manager'])
+      ->when($search, function ($q) use ($search) {
+        $q->where(function ($sub) use ($search) {
+          $sub->where('code', 'ILIKE', "%{$search}%")
+            ->orWhereHas('customer', fn($c) => $c->where('phone', 'like', "%{$search}%")
+              ->orWhere('phone_normalized', 'like', "%{$search}%")
+              ->orWhere('first_name', 'like', "%{$search}%")
+              ->orWhere('last_name', 'like', "%{$search}%")
+            );
+        });
+      })
+      // Разграничение прав: если это менеджер/дилер, отдаем только его заказы (если не админ)
+     /* ->when($user && !$user->hasRole('admin'), function ($q) use ($user) {
+        $q->where('manager_id', $user->id);
+      })*/
+      // Опциональный фильтр по конкретному менеджеру (для админки)
+      ->when($request->filled('manager_id'), fn($q) => $q->where('manager_id', $request->input('manager_id')))
+      // Опциональный фильтр по статусу
+      ->when($request->filled('status'), fn($q) => $q->whereHas('status', fn($s) => $s->where('slug', $request->input('status'))))
+      ->orderBy('created_at', 'desc');
+
+    return OrderListResource::collection($query->paginate($limit));
   }
 
   /**
