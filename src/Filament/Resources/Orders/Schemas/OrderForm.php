@@ -24,6 +24,12 @@ class OrderForm
           ->schema([
             Section::make(__('Pricing & Economy'))
               ->schema([
+                // @since 2026-09-06: Название проекта
+                TextInput::make('name')
+                  ->label(__('Project Name'))
+                  ->placeholder(__('e.g. Terrace near pool'))
+                  ->columnSpanFull(),
+
                 TextInput::make('grand_total')
                   ->label(__('Total'))
                   ->numeric()

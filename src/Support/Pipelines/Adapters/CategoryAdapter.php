@@ -12,6 +12,12 @@ use Nicole\Box\Core\Support\Constants\EntityType as ET;
 
 class CategoryAdapter extends BasePipelineEntityAdapter
 {
+
+  public function getMorphType(): string
+  {
+    return ET::CATEGORY; // 'category'
+  }
+
   public function getLabel(): string
   {
     return ET::label(ET::CATEGORY);

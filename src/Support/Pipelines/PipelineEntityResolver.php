@@ -61,11 +61,11 @@ class PipelineEntityResolver
   public static function getAvailableEntityTypes(): array
   {
     $types = [];
-    foreach (static::$adapters as $key => $adapter) {
-      if ($key === $adapter->getMorphType()) {
-        $types[$adapter->getMorphType()] = __($adapter->getLabel());
-      }
+
+    foreach (static::$adapters as $adapter) {
+      $types[$adapter->getMorphType()] = __($adapter->getLabel());
     }
+
     return $types;
   }
 

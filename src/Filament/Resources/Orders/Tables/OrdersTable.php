@@ -28,6 +28,14 @@ class OrdersTable
           ->sortable()
           ->weight('bold'),
 
+        // @since 2026-09-06: Название проекта / расчета
+        TextColumn::make('name')
+          ->label(__('Project Name'))
+          ->state(fn ($record) => $record->name ?: ($record->title ?: ($record->calc_state['project']['name'] ?? '-')))
+          ->searchable()
+          ->sortable()
+          ->weight('medium'),
+
         TextColumn::make('customer.full_name')
           ->label(__('Customer'))
           ->state(fn ($record) => $record->customer?->full_name ?? '-')
@@ -44,7 +52,6 @@ class OrdersTable
         TextColumn::make('status.name')
           ->label(__('Status'))
           ->badge()
-
           ->color(fn ($record) => $record->status?->color ?? 'gray')
           ->sortable(),
 
@@ -81,7 +88,6 @@ class OrdersTable
           ->color('gray')
           ->url(fn ($record): string => "/api/v1/orders/{$record->code}/html")
           ->openUrlInNewTab(),
-
 
         Action::make('print_pdf')
           ->label(__('PDF'))
