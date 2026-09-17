@@ -29,6 +29,8 @@ use Nicole\Box\Core\Filament\Clusters\Pipelines\Actions\ConfigureRootAction;
 use Nicole\Box\Core\Filament\Clusters\Pipelines\Actions\DeleteNodeAction;
 use Nicole\Box\Core\Filament\Clusters\Pipelines\PipelineCluster;
 use Nicole\Box\Core\Models\BindingRule;
+use Nicole\Box\Core\Models\ComplexDictionary;
+use Nicole\Box\Core\Models\ComplexDictionaryRecord;
 use Nicole\Box\Core\Models\Pipeline;
 use Nicole\Box\Core\Models\ProductVariant;
 use Nicole\Box\Core\Services\Calculator\PipelineTreeService;
@@ -165,6 +167,13 @@ class PipelineChainsPage extends Page implements HasForms, HasTable, HasActions
 
         $rootTypeCode = $this->resolveRootTypeCode($pipeline);
 
+        $dictionary = $rootTypeCode ? ComplexDictionary::where('code', $rootTypeCode)->first() : null;
+        if ($dictionary) {
+          return ComplexDictionaryRecord::query()
+            ->where('dictionary_id', $dictionary->id)
+            ->where('is_active', true);
+        }
+
         $variantIds = BindingRule::where('pipeline_id', $pipeline->id)
           ->where('parent_type', (new ProductVariant())->getMorphClass())
           ->pluck('parent_id')
@@ -192,16 +201,17 @@ class PipelineChainsPage extends Page implements HasForms, HasTable, HasActions
 
         TextColumn::make('sku')
           ->label(__('SKU'))
+          ->state(fn($record) => $record->sku ?? ($record->slug ?? '-'))
           ->fontFamily('mono')
           ->color('gray')
           ->searchable(),
 
         TextColumn::make('tree_validity')
           ->label(__('Tree State'))
-          ->state(function (ProductVariant $record): string {
+          ->state(function ($record): string {
             if (!$this->pipeline_code) return __('Has Errors');
 
-            $report = app(PipelineTreeService::class)->analyzeTree($record->id, $this->pipeline_code);
+            $report = app(PipelineTreeService::class)->analyzeTree($record->id, $this->pipeline_code, $record->getMorphClass());
             return $report && ($report['is_valid'] ?? false)
               ? __('Ready to Publish')
               : __('Has Errors');
@@ -221,7 +231,7 @@ class PipelineChainsPage extends Page implements HasForms, HasTable, HasActions
           ->label(__('Configure Tree'))
           ->icon('heroicon-m-sparkles')
           ->color('primary')
-          ->action(fn(ProductVariant $record) => $this->selectEntity($record->id, $record->getMorphClass())),
+          ->action(fn($record) => $this->selectEntity($record->id, $record->getMorphClass())),
       ])
       ->headerActions([
         Action::make('create_chain')
