@@ -10,8 +10,6 @@ use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Filament\Tables\Columns\SelectColumn;
-use Nicole\Box\Core\Models\OrderStatus;
 
 class OrdersTable
 {
@@ -30,6 +28,14 @@ class OrdersTable
           ->sortable()
           ->weight('bold'),
 
+        // @since 2026-09-06: Название проекта / расчета
+        TextColumn::make('name')
+          ->label(__('Project Name'))
+          ->state(fn ($record) => $record->name ?: ($record->title ?: ($record->calc_state['project']['name'] ?? '-')))
+          ->searchable()
+          ->sortable()
+          ->weight('medium'),
+
         TextColumn::make('customer.full_name')
           ->label(__('Customer'))
           ->state(fn ($record) => $record->customer?->full_name ?? '-')
@@ -43,34 +49,15 @@ class OrdersTable
           ->weight('bold')
           ->color('primary'),
 
-        SelectColumn::make('status_id')
+        TextColumn::make('status.name')
           ->label(__('Status'))
-          ->options(function () {
-            $locale = app()->getLocale();
-            return OrderStatus::query()
-              ->where('is_active', true)
-              ->orderBy('sort_order')
-              ->get()
-              ->mapWithKeys(fn (OrderStatus $status) => [
-                $status->id => $status->getTranslation('name', $locale) ?: $status->name,
-              ]);
-          })
-          ->selectablePlaceholder(false)
+          ->badge()
+          ->color(fn ($record) => $record->status?->color ?? 'gray')
           ->sortable(),
 
-        SelectColumn::make('manager_id')
+        TextColumn::make('manager.name')
           ->label(__('Staff'))
-          ->options(function () {
-            $userModel = config('nicole.models.staff', \App\Models\User::class);
-
-            return $userModel::query()
-              ->whereHas('roles', fn ($q) => $q->whereIn('name', ['dealer', 'manager', 'admin', 'super_admin']))
-              ->orderBy('name')
-              ->pluck('name', 'id');
-          })
-          ->placeholder(__('Not assigned'))
           ->searchable()
-          ->sortable()
           ->toggleable(),
 
         TextColumn::make('locale')
@@ -101,7 +88,6 @@ class OrdersTable
           ->color('gray')
           ->url(fn ($record): string => "/api/v1/orders/{$record->code}/html")
           ->openUrlInNewTab(),
-
 
         Action::make('print_pdf')
           ->label(__('PDF'))
