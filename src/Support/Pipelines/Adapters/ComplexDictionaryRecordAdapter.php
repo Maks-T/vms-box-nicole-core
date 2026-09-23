@@ -12,6 +12,12 @@ use Nicole\Box\Core\Support\Constants\EntityType as ET;
 
 class ComplexDictionaryRecordAdapter extends BasePipelineEntityAdapter
 {
+
+  public function getMorphType(): string
+  {
+    return ET::COMPLEX_DICTIONARY_RECORD; // 'complex_dictionary_record'
+  }
+
   public function getLabel(): string
   {
     return ET::label(ET::COMPLEX_DICTIONARY_RECORD);

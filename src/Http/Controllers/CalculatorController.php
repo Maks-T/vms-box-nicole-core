@@ -12,13 +12,18 @@ use Inertia\Response;
 class CalculatorController
 {
   /**
-   * Отображение страницы калькулятора.
+   * Отображение страницы калькулятора
+   *
+   * @param Request $request
+   * @param string|null $type Режим/тип калькулятора
+   * @return Response
    */
   public function show(Request $request, ?string $type = null): Response
   {
+
     $widgetSlug = $request->query('widget')
       ?? config('nicole.active_widget')
-      ?? env('VMS_ACTIVE_WIDGET', 'cpq-stone');
+      ?? env('VMS_ACTIVE_WIDGET', 'widget');
 
     $order = null;
     if ($request->filled('code')) {
@@ -28,11 +33,11 @@ class CalculatorController
     }
 
     $user = auth()->user();
-    $baseUrl = rtrim((string) config('app.url', url('/')), '/');
+    $baseUrl = rtrim((string)config('app.url', url('/')), '/');
 
     $initialData = [
       'apiUrl' => "{$baseUrl}/api/v1",
-      'assetsUrl' => "{$baseUrl}/{$widgetSlug}/",
+      'assetsUrl' => "{$baseUrl}/storage/{$widgetSlug}/",
       'baseUrl' => $baseUrl,
       'policyLink' => config('nicole.policy_link', '#'),
       'ofertaLink' => config('nicole.oferta_link', '#'),
@@ -40,9 +45,9 @@ class CalculatorController
       'auth' => [
         'client' => null,
         'employee' => $user ? [
-          'id' => (int) $user->id,
-          'name' => (string) $user->name,
-          'email' => (string) $user->email,
+          'id' => (int)$user->id,
+          'name' => (string)$user->name,
+          'email' => (string)$user->email,
           'roles' => method_exists($user, 'getRoleNames')
             ? $user->getRoleNames()->values()->toArray()
             : (isset($user->roles) ? collect($user->roles)->pluck('name')->filter()->values()->toArray() : []),
@@ -62,8 +67,15 @@ class CalculatorController
     ]);
   }
 
+  /**
+   * Разрешение физического пути к embed.js для виджета
+   */
   protected function resolveEmbedUrl(string $baseUrl, string $widgetSlug): string
   {
+    if (file_exists(public_path("storage/{$widgetSlug}/embed.js"))) {
+      return "{$baseUrl}/storage/{$widgetSlug}/embed.js";
+    }
+
     if (file_exists(public_path("{$widgetSlug}/embed.js"))) {
       return "{$baseUrl}/{$widgetSlug}/embed.js";
     }
@@ -72,6 +84,7 @@ class CalculatorController
       return "{$baseUrl}/widget/embed.js";
     }
 
-    return "{$baseUrl}/{$widgetSlug}/embed.js";
+    return "{$baseUrl}/storage/{$widgetSlug}/embed.js";
   }
+
 }

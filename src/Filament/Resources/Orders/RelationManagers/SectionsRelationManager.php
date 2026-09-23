@@ -7,17 +7,12 @@ namespace Nicole\Box\Core\Filament\Resources\Orders\RelationManagers;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Forms\Components\TextInput;
-
 use Filament\Infolists\Components\KeyValueEntry;
-use Filament\Infolists\Components\ViewEntry;
-use Filament\Schemas\Components\Tabs;
-use Filament\Schemas\Components\Tabs\Tab;
-use Filament\Schemas\Components\Grid;
-use Filament\Schemas\Components\Section;
-use Filament\Schemas\Schema;
-
 use Filament\Infolists\Components\TextEntry;
 use Filament\Resources\RelationManagers\RelationManager;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Schema;
 use Filament\Support\Enums\Width;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
@@ -26,7 +21,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\HtmlString;
 use Nicole\Box\Core\Filament\Resources\Orders\Schemas\Tabs\EstimateTab;
 use Nicole\Box\Core\Models\OrderSection;
-
+use Nicole\Box\Core\Support\OrderSectionFormatterResolver;
 use Njxqlus\Filament\Components\Forms\RelationManager as NjxqlusRelationManager;
 
 class SectionsRelationManager extends RelationManager
@@ -53,7 +48,7 @@ class SectionsRelationManager extends RelationManager
   }
 
   /**
-   * Таблица изделий в заказе
+   * Таблица изделий в заказе.
    */
   public function table(Table $table): Table
   {
@@ -74,21 +69,14 @@ class SectionsRelationManager extends RelationManager
           ->weight('bold')
           ->searchable(),
 
+        // Вывод характеристик делегирован отраслевому резолверу
+        // @since 2026-09-06
         TextColumn::make('description')
           ->label(__('Technical Specifications'))
-          ->state(function (OrderSection $record) {
-            if (empty($record->description)) {
-              return '-';
-            }
-
-            return collect($record->description)
-              ->map(fn($spec) => "▪ {$spec['name']}: {$spec['description']}")
-              ->join("<br />");
-          })
+          ->state(fn(OrderSection $record) => OrderSectionFormatterResolver::formatSummary($record))
           ->wrap()
           ->html()
-          ->color('gray')
-          ->fontFamily('sans'),
+          ->color('gray'),
 
         TextColumn::make('price_grand_total')
           ->label(__('Total'))
@@ -98,7 +86,6 @@ class SectionsRelationManager extends RelationManager
           ->alignEnd(),
       ])
       ->recordActions([
-
         Action::make('view_estimate')
           ->label(__('Details'))
           ->icon('heroicon-o-document-text')
@@ -108,38 +95,29 @@ class SectionsRelationManager extends RelationManager
           ->modalWidth(Width::SevenExtraLarge)
           ->modalSubmitAction(false)
           ->modalCancelActionLabel(__('Close'))
-          ->fillForm(function (OrderSection $record): array {
-            $state = [];
-            foreach ($record->description ?? [] as $spec) {
-              $cleanKey = str_replace(':', '', $spec['name']);
-              $state["spec_" . str_replace(' ', '_', $cleanKey)] = $spec['description'];
-            }
-            return $state;
-          })
           ->schema([
             Tabs::make('SectionDetails')
               ->tabs([
-
+                // 1. Вкладка сметы
                 EstimateTab::make(),
 
+                // 2. Вкладка характеристик через отраслевой резолвер
+                // @since 2026-09-06
                 Tab::make(__('Technical Specifications'))
                   ->icon('heroicon-o-list-bullet')
                   ->schema([
                     KeyValueEntry::make('description')
                       ->label(__('Technical Specifications'))
-                      ->state(function (OrderSection $record) {
-                        return collect($record->description ?? [])
-                          ->pluck('description', 'name')
-                          ->toArray();
-                      })
+                      ->state(fn(OrderSection $record) => OrderSectionFormatterResolver::formatSpecifications($record))
                       ->keyLabel(__('Parameter'))
                       ->valueLabel(__('Value'))
                       ->columnSpanFull(),
                   ]),
 
+                // 3. Вкладка чертежей
                 Tab::make(__('Drawings'))
                   ->icon('heroicon-o-photo')
-                  ->visible(fn (OrderSection $record) => $record->hasMedia('drawing'))
+                  ->visible(fn(OrderSection $record) => $record->hasMedia('drawing'))
                   ->schema([
                     TextEntry::make('drawing_preview')
                       ->hiddenLabel()
@@ -154,6 +132,7 @@ class SectionsRelationManager extends RelationManager
                       }),
                   ]),
 
+                // 4. Вкладка складских товаров каталога
                 Tab::make(__('Catalog Products'))
                   ->icon('heroicon-o-puzzle-piece')
                   ->schema([
@@ -169,5 +148,4 @@ class SectionsRelationManager extends RelationManager
       ])
       ->defaultSort('id', 'asc');
   }
-
 }

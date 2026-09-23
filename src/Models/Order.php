@@ -10,11 +10,18 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Nicole\Box\Core\Traits\HasExternalCode;
 use Illuminate\Support\Str;
 
+/**
+ * Модель заказа / коммерческого предложения.
+ *
+ * @since 2026-09-06
+ */
 class Order extends Model
 {
   use HasExternalCode;
 
   protected $fillable = [
+    'name',
+    'title',
     'code',
     'external_code',
     'customer_id',
@@ -24,7 +31,7 @@ class Order extends Model
     'status_id',
     'customer_comment',
     'manager_comment',
-    'calc_state', // Переименовано в calc_state (маппинг 1-к-1)
+    'calc_state',
     'manager_id',
   ];
 
@@ -32,7 +39,7 @@ class Order extends Model
   {
     return [
       'grand_total' => 'float',
-      'calc_state' => 'array', // Переименовано в calc_state (маппинг 1-к-1)
+      'calc_state' => 'array',
     ];
   }
 
@@ -47,7 +54,7 @@ class Order extends Model
   }
 
   /**
-   * Связь со всеми секциями (изделиями) в рамках этого заказа
+   * Секции (изделия) в рамках этого заказа.
    */
   public function sections(): HasMany
   {
@@ -55,7 +62,7 @@ class Order extends Model
   }
 
   /**
-   * ОБНОВЛЕНО: Связь со всеми связанными товарами этого заказа (order_products вместо order_items)
+   * Складские товары каталога, привязанные к этому расчету.
    */
   public function products(): HasMany
   {
@@ -90,4 +97,5 @@ class Order extends Model
   {
     return $this->code;
   }
+
 }

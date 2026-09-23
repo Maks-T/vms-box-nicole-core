@@ -12,6 +12,12 @@ use Nicole\Box\Core\Support\Constants\EntityType as ET;
 
 class ProductAdapter extends BasePipelineEntityAdapter
 {
+
+  public function getMorphType(): string
+  {
+    return ET::PRODUCT; // 'product'
+  }
+
   public function getLabel(): string
   {
     return ET::label(ET::PRODUCT);
