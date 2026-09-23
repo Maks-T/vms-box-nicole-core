@@ -10,6 +10,8 @@ use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Filament\Tables\Columns\SelectColumn;
+use Nicole\Box\Core\Models\OrderStatus;
 
 class OrdersTable
 {
@@ -41,16 +43,34 @@ class OrdersTable
           ->weight('bold')
           ->color('primary'),
 
-        TextColumn::make('status.name')
+        SelectColumn::make('status_id')
           ->label(__('Status'))
-          ->badge()
-
-          ->color(fn ($record) => $record->status?->color ?? 'gray')
+          ->options(function () {
+            $locale = app()->getLocale();
+            return OrderStatus::query()
+              ->where('is_active', true)
+              ->orderBy('sort_order')
+              ->get()
+              ->mapWithKeys(fn (OrderStatus $status) => [
+                $status->id => $status->getTranslation('name', $locale) ?: $status->name,
+              ]);
+          })
+          ->selectablePlaceholder(false)
           ->sortable(),
 
-        TextColumn::make('manager.name')
+        SelectColumn::make('manager_id')
           ->label(__('Staff'))
+          ->options(function () {
+            $userModel = config('nicole.models.staff', \App\Models\User::class);
+
+            return $userModel::query()
+              ->whereHas('roles', fn ($q) => $q->whereIn('name', ['dealer', 'manager', 'admin', 'super_admin']))
+              ->orderBy('name')
+              ->pluck('name', 'id');
+          })
+          ->placeholder(__('Not assigned'))
           ->searchable()
+          ->sortable()
           ->toggleable(),
 
         TextColumn::make('locale')
