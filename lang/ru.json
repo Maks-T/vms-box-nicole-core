@@ -405,5 +405,8 @@
   "New Parent Group": "Новая родительская группа",
   "No": "Нет",
   "Yes": "Да",
-  "e.g. Terrace near pool": "например: Терраса у бассейна"
+  "e.g. Terrace near pool": "например: Терраса у бассейна",
+  "Variant Name": "Название модификации",
+  "Leave empty to inherit parent product name": "Оставьте пустым, чтобы наследовать имя базового товара",
+  "If left empty, the parent product name will be used.": "Если не указано, используется название базового товара."
 }

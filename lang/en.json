@@ -403,5 +403,8 @@
   "New Parent Group": "New Parent Group",
   "No": "No",
   "Yes": "Yes",
-  "e.g. Terrace near pool": "e.g. Terrace near pool"
+  "e.g. Terrace near pool": "e.g. Terrace near pool",
+  "Variant Name": "Variant Name",
+  "Leave empty to inherit parent product name": "Leave empty to inherit parent product name",
+  "If left empty, the parent product name will be used.": "If left empty, the parent product name will be used."
 }

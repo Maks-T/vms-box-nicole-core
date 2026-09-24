@@ -47,6 +47,22 @@ class ProductVariantsTable
           ->fontFamily('mono')
           ->toggleable(),
 
+        TextColumn::make('name')
+          ->label(__('Variant Name'))
+          ->state(function (ProductVariant $record) {
+            $locale = app()->getLocale();
+            return $record->getTranslation('name', $locale)
+              ?: ($record->getTranslation('name', 'ru') ?: '—');
+          })
+          ->searchable(query: function (\Illuminate\Database\Eloquent\Builder $query, string $search): \Illuminate\Database\Eloquent\Builder {
+            return $query->where('name->ru', 'ilike', "%{$search}%")
+              ->orWhere('name->en', 'ilike', "%{$search}%");
+          })
+          ->sortable()
+          ->weight('medium')
+          ->wrap()
+          ->toggleable(),
+
         TextColumn::make('product.name')
           ->label(__('Parent Product'))
           ->state(function (ProductVariant $record) {

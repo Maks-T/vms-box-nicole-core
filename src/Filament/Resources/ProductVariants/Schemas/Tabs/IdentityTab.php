@@ -42,6 +42,13 @@ class IdentityTab
                 ->unique(ignoreRecord: true)
                 ->maxLength(255),
 
+              TextInput::make('name')
+                ->label(__('Variant Name'))
+                ->placeholder(__('Leave empty to inherit parent product name'))
+                ->helperText(__('If left empty, the parent product name will be used.'))
+                ->translatable()
+                ->columnSpanFull(),
+
               TextInput::make('external_code')
                 ->label(__('External Code'))
                 ->nullable()
