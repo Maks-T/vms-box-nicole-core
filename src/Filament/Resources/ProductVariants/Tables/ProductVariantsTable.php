@@ -4,9 +4,15 @@ declare(strict_types=1);
 
 namespace Nicole\Box\Core\Filament\Resources\ProductVariants\Tables;
 
+use Filament\Actions\ActionGroup;
+use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Actions\ReplicateAction;
+use Filament\Forms\Components\TextInput;
+use Illuminate\Database\Eloquent\Collection;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\IconColumn;
@@ -16,6 +22,7 @@ use Filament\Tables\Enums\FiltersLayout;
 use Filament\Notifications\Notification;
 use Nicole\Box\Core\Filament\Resources\ProductVariants\Filters\ProductVariantFilters;
 use Nicole\Box\Core\Models\ProductVariant;
+use Nicole\Box\Core\Services\Catalog\ReplicationService;
 use Nicole\Box\Core\Services\PricingManager;
 use Nicole\Box\Core\Filament\Helpers\TableHelper;
 
@@ -209,8 +216,62 @@ class ProductVariantsTable
       ->filtersLayout(FiltersLayout::AboveContent)
       ->filtersFormColumns(3)
       ->filters(ProductVariantFilters::all())
-      ->recordActions([EditAction::make()])
-      ->toolbarActions([BulkActionGroup::make([DeleteBulkAction::make()])])
+      ->recordActions([
+        ActionGroup::make([
+          EditAction::make(),
+          ReplicateAction::make()
+            ->label(__('Replicate'))
+            ->modalHeading(__('Replicate Variant'))
+            ->schema([
+              TextInput::make('sku')
+                ->label(__('SKU / Article'))
+                ->required()
+                ->default(fn (ProductVariant $record, ReplicationService $service): string => $service->generateUniqueVariantSku((string) $record->sku))
+                ->maxLength(255),
+              TextInput::make('name')
+                ->label(__('Variant Name'))
+                ->placeholder(fn (ProductVariant $record): ?string => $record->getTranslation('name', app()->getLocale(), false)),
+            ])
+            ->action(function (ProductVariant $record, array $data, ReplicationService $service): void {
+              $overrides = ['sku' => $data['sku']];
+              if (!empty($data['name'])) {
+                $overrides['name'] = [app()->getLocale() => $data['name']];
+              }
+              $replica = $service->replicateVariant($record, $overrides);
+
+              Notification::make()
+                ->success()
+                ->title(__('Variant duplicated: :sku', ['sku' => $replica->sku]))
+                ->send();
+            }),
+          DeleteAction::make(),
+        ]),
+      ])
+      ->toolbarActions([
+        BulkActionGroup::make([
+          BulkAction::make('replicate')
+            ->label(__('Replicate'))
+            ->icon('heroicon-o-document-duplicate')
+            ->requiresConfirmation()
+            ->modalHeading(__('Replicate selected variants'))
+            ->action(function (Collection $records, ReplicationService $service): void {
+              $count = 0;
+              foreach ($records as $record) {
+                if ($record instanceof ProductVariant) {
+                  $service->replicateVariant($record);
+                  $count++;
+                }
+              }
+
+              Notification::make()
+                ->success()
+                ->title(__('Successfully duplicated :count variants', ['count' => $count]))
+                ->send();
+            })
+            ->deselectRecordsAfterCompletion(),
+          DeleteBulkAction::make(),
+        ]),
+      ])
       ->defaultSort('updated_at', 'desc')
       ->persistFiltersInSession()
       ->persistSearchInSession()
