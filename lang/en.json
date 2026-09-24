@@ -395,5 +395,13 @@
   "days": "days",
   "pcs.": "pcs.",
   "Parent Product": "Parent Product",
-  "slots_count": "{1} :count slot|[2,*] :count slots"
+  "slots_count": "{1} :count slot|[2,*] :count slots",
+  "Calculator Settings": "Calculator Settings",
+  "No estimate data": "No estimate data",
+  "Not assigned": "Not assigned",
+  "Project Name": "Project",
+  "New Parent Group": "New Parent Group",
+  "No": "No",
+  "Yes": "Yes",
+  "e.g. Terrace near pool": "e.g. Terrace near pool"
 }

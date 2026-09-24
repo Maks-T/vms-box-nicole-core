@@ -161,6 +161,12 @@ class OrderService
     $calcState = $this->normalizeCalcState($data['calc_state'] ?? null);
     $orderName = $this->resolveOrderName($data, $calcState);
 
+    $managerId = $data['manager_id']
+      ?? ($data['employee_id'] ?? null)
+      ?? ($data['auth']['employee']['id'] ?? null)
+      ?? auth('web')->id()
+      ?? auth()->id();
+
     return Order::create([
       'name' => $orderName,
       'code' => $orderCode,
@@ -172,7 +178,7 @@ class OrderService
       'customer_comment' => $data['customer_comment'] ?? null,
       'manager_comment' => $data['manager_comment'] ?? null,
       'calc_state' => $calcState,
-      'manager_id' => !empty($data['manager_id']) ? (int)$data['manager_id'] : null,
+      'manager_id' => $managerId ? (int)$managerId : null,
     ]);
   }
 
@@ -189,6 +195,13 @@ class OrderService
     $calcState = $this->normalizeCalcState($data['calc_state'] ?? null);
     $orderName = $this->resolveOrderName($data, $calcState);
 
+    $managerId = $data['manager_id']
+      ?? ($data['employee_id'] ?? null)
+      ?? ($data['auth']['employee']['id'] ?? null)
+      ?? auth('web')->id()
+      ?? auth()->id()
+      ?? $order->manager_id;
+
     $order->update([
       'name' => $orderName,
       'customer_id' => $customer ? $customer->id : $order->customer_id,
@@ -197,7 +210,7 @@ class OrderService
       'customer_comment' => $data['customer_comment'] ?? null,
       'manager_comment' => $data['manager_comment'] ?? null,
       'calc_state' => $calcState,
-      'manager_id' => !empty($data['manager_id']) ? (int)$data['manager_id'] : null,
+      'manager_id' => $managerId ? (int)$managerId : null,
     ]);
 
     OrderProduct::where('order_id', $order->id)->delete();

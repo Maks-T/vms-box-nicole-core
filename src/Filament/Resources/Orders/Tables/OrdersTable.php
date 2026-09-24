@@ -8,8 +8,10 @@ use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Tables\Columns\SelectColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Nicole\Box\Core\Models\OrderStatus;
 
 class OrdersTable
 {
@@ -49,15 +51,34 @@ class OrdersTable
           ->weight('bold')
           ->color('primary'),
 
-        TextColumn::make('status.name')
+        SelectColumn::make('status_id')
           ->label(__('Status'))
-          ->badge()
-          ->color(fn ($record) => $record->status?->color ?? 'gray')
+          ->options(function () {
+            $locale = app()->getLocale();
+            return OrderStatus::query()
+              ->where('is_active', true)
+              ->orderBy('sort_order')
+              ->get()
+              ->mapWithKeys(fn (OrderStatus $status) => [
+                $status->id => $status->getTranslation('name', $locale) ?: (string) $status->name,
+              ])
+              ->toArray();
+          })
+          ->selectablePlaceholder(false)
           ->sortable(),
 
-        TextColumn::make('manager.name')
+        SelectColumn::make('manager_id')
           ->label(__('Staff'))
+          ->options(function () {
+            $userModel = config('nicole.models.staff', \App\Models\User::class);
+            return $userModel::query()
+              ->orderBy('name')
+              ->pluck('name', 'id')
+              ->toArray();
+          })
+          ->placeholder(__('Not assigned'))
           ->searchable()
+          ->sortable()
           ->toggleable(),
 
         TextColumn::make('locale')
@@ -68,7 +89,8 @@ class OrdersTable
 
         TextColumn::make('created_at')
           ->label(__('Created At'))
-          ->dateTime()
+          ->dateTime('d.m.Y H:i')
+          ->timezone(config('app.timezone', 'Asia/Yekaterinburg'))
           ->sortable(),
       ])
       ->filters([

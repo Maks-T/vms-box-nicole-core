@@ -5,7 +5,7 @@
 
 @if(empty($estimate))
   <div class="text-sm text-gray-500 italic py-4">
-    {{ __('Смета пуста') }}
+    {{ __('No estimate data') }}
   </div>
 @else
   <div class="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-xl">

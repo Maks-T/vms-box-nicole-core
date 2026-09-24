@@ -397,5 +397,13 @@
   "pcs.": "шт.",
   "Смета пуста": "Смета пуста",
   "Parent Product": "Базовый товар",
-  "slots_count": "{1} :count слот|[2,4] :count слота|[5,*] :count слотов"
+  "slots_count": "{1} :count слот|[2,4] :count слота|[5,*] :count слотов",
+  "Calculator Settings": "Настройки калькулятора",
+  "No estimate data": "Смета пуста",
+  "Not assigned": "Без менеджера",
+  "Project Name": "Проект",
+  "New Parent Group": "Новая родительская группа",
+  "No": "Нет",
+  "Yes": "Да",
+  "e.g. Terrace near pool": "например: Терраса у бассейна"
 }
