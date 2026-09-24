@@ -200,17 +200,11 @@ class ReplicationService
     $sourceValues = $source->attributeValues()->get();
 
     foreach ($sourceValues as $attrValue) {
-      ProductAttributeValue::query()->create([
-        'attribute_id' => $attrValue->attribute_id,
-        'attributable_type' => $target->getMorphClass(),
-        'attributable_id' => $target->id,
-        'value_string' => $attrValue->value_string,
-        'value_numeric' => $attrValue->value_numeric,
-        'value_boolean' => $attrValue->value_boolean,
-        'value_option_id' => $attrValue->value_option_id,
-        'value_complex_id' => $attrValue->value_complex_id,
-        'value_entity_id' => $attrValue->value_entity_id,
-      ]);
+      /** @var ProductAttributeValue $replica */
+      $replica = $attrValue->replicate(['attributable_id', 'attributable_type']);
+      $replica->attributable_id = $target->id;
+      $replica->attributable_type = $target->getMorphClass();
+      $replica->save();
     }
   }
 
@@ -222,12 +216,10 @@ class ReplicationService
     $sourcePrices = $source->prices()->get();
 
     foreach ($sourcePrices as $priceRecord) {
-      ProductVariantPrice::query()->create([
-        'product_variant_id' => $target->id,
-        'price_type_id' => $priceRecord->price_type_id,
-        'markup_percent' => $priceRecord->markup_percent,
-        'price' => $priceRecord->price,
-      ]);
+      /** @var ProductVariantPrice $replica */
+      $replica = $priceRecord->replicate(['product_variant_id']);
+      $replica->product_variant_id = $target->id;
+      $replica->save();
     }
   }
 

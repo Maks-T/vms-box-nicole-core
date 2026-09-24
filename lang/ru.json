@@ -408,5 +408,18 @@
   "e.g. Terrace near pool": "например: Терраса у бассейна",
   "Variant Name": "Название модификации",
   "Leave empty to inherit parent product name": "Оставьте пустым, чтобы наследовать имя базового товара",
-  "If left empty, the parent product name will be used.": "Если не указано, используется название базового товара."
+  "If left empty, the parent product name will be used.": "Если не указано, используется название базового товара.",
+  "Calculator": "Калькулятор",
+  "Duplicate with variants (SKUs)": "Клонировать с модификациями (SKU)",
+  "If enabled, all variations will be cloned with their prices and attributes": "Если включено, все модификации будут скопированы со своими ценами и атрибутами",
+  "Product Name": "Название товара",
+  "Product duplicated: :name": "Товар клонирован: :name",
+  "Replicate": "Клонировать",
+  "Replicate Product": "Клонировать товар",
+  "Replicate Variant": "Клонировать модификацию",
+  "Replicate selected products": "Клонировать выбранные товары",
+  "Replicate selected variants": "Клонировать выбранные модификации",
+  "Successfully duplicated :count products": "Успешно клонировано :count товаров",
+  "Successfully duplicated :count variants": "Успешно клонировано :count модификаций",
+  "Variant duplicated: :sku": "Модификация клонирована: :sku"
 }

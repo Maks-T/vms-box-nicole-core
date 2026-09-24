@@ -406,5 +406,18 @@
   "e.g. Terrace near pool": "e.g. Terrace near pool",
   "Variant Name": "Variant Name",
   "Leave empty to inherit parent product name": "Leave empty to inherit parent product name",
-  "If left empty, the parent product name will be used.": "If left empty, the parent product name will be used."
+  "If left empty, the parent product name will be used.": "If left empty, the parent product name will be used.",
+  "Calculator": "Calculator",
+  "Duplicate with variants (SKUs)": "Duplicate with variants (SKUs)",
+  "If enabled, all variations will be cloned with their prices and attributes": "If enabled, all variations will be cloned with their prices and attributes",
+  "Product Name": "Product Name",
+  "Product duplicated: :name": "Product duplicated: :name",
+  "Replicate": "Replicate",
+  "Replicate Product": "Replicate Product",
+  "Replicate Variant": "Replicate Variant",
+  "Replicate selected products": "Replicate selected products",
+  "Replicate selected variants": "Replicate selected variants",
+  "Successfully duplicated :count products": "Successfully duplicated :count products",
+  "Successfully duplicated :count variants": "Successfully duplicated :count variants",
+  "Variant duplicated: :sku": "Variant duplicated: :sku"
 }
