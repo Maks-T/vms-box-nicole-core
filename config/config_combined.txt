@@ -1,4 +1,66 @@
 Processing file: "!filePath!"
+File: "\\wsl.localhost\Ubuntu-24.04\home\maks-t\vms-box-platform-showers\packages\box\nicole\core\config\cors.php"
+<?php
+
+return [
+
+  /*
+  |--------------------------------------------------------------------------
+  | Cross-Origin Resource Sharing (CORS) Configuration
+  |--------------------------------------------------------------------------
+  |
+  | Here you may configure your settings for cross-origin resource sharing
+  | or "CORS". This determines what cross-origin operations may execute
+  | in web browsers. You are free to adjust these settings as needed.
+  |
+  | To learn more: https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS
+  |
+  */
+
+  'paths' => ['api/*', 'sanctum/csrf-cookie'],
+
+  'allowed_methods' => ['*'],
+
+  'allowed_origins' => [],
+
+  'allowed_origins_patterns' => [
+    env('VMS_CORS_ORIGINS_PATTERN', '.*'),
+  ],
+
+  'allowed_headers' => ['*'],
+
+  'exposed_headers' => [],
+
+  'max_age' => 0,
+
+  'supports_credentials' => true,
+
+];
+Processing file: "!filePath!"
+File: "\\wsl.localhost\Ubuntu-24.04\home\maks-t\vms-box-platform-showers\packages\box\nicole\core\config\media-library.php"
+<?php
+
+declare(strict_types=1);
+use Nicole\Box\Core\Models\Media;
+use Nicole\Box\Core\Support\Media\NicolePathGenerator;
+
+return [
+
+    'media_model' => Media::class,
+
+    /*
+   | Default disk for catalog images.
+   */
+    'disk_name' => env('MEDIA_DISK', 'public'),
+
+    /*
+   | Max file size in bytes.
+   */
+    'max_file_size' => 1024 * 1024 * 10, // 10MB
+
+    'path_generator' => NicolePathGenerator::class,
+];
+Processing file: "!filePath!"
 File: "\\wsl.localhost\Ubuntu-24.04\home\maks-t\vms-box-platform-showers\packages\box\nicole\core\config\nicole.php"
 <?php
 
@@ -199,43 +261,5 @@ return [
   |
   */
   'deploy_script_name' => env('VMS_DEPLOY_SCRIPT_NAME', 'deploy-hook.sh'),
-
-];
-Processing file: "!filePath!"
-File: "\\wsl.localhost\Ubuntu-24.04\home\maks-t\vms-box-platform-showers\packages\box\nicole\core\config\cors.php"
-<?php
-
-return [
-
-  /*
-  |--------------------------------------------------------------------------
-  | Cross-Origin Resource Sharing (CORS) Configuration
-  |--------------------------------------------------------------------------
-  |
-  | Here you may configure your settings for cross-origin resource sharing
-  | or "CORS". This determines what cross-origin operations may execute
-  | in web browsers. You are free to adjust these settings as needed.
-  |
-  | To learn more: https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS
-  |
-  */
-
-  'paths' => ['api/*', 'sanctum/csrf-cookie'],
-
-  'allowed_methods' => ['*'],
-
-  'allowed_origins' => [],
-
-  'allowed_origins_patterns' => [
-    env('VMS_CORS_ORIGINS_PATTERN', '.*'),
-  ],
-
-  'allowed_headers' => ['*'],
-
-  'exposed_headers' => [],
-
-  'max_age' => 0,
-
-  'supports_credentials' => true,
 
 ];
