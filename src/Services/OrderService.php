@@ -325,6 +325,15 @@ class OrderService
       foreach ($itemList as $item) {
         if (!is_array($item)) continue;
 
+        // Кастомные ручные позиции без привязки к товарам каталога не добавляются в складские OrderProduct
+        if (
+          !empty($item['meta']['is_custom']) ||
+          (array_key_exists('variant_id', $item) && $item['variant_id'] === null) ||
+          (!empty($item['description']) && in_array('Ручная позиция', (array)$item['description'], true))
+        ) {
+          continue;
+        }
+
         $variantId = $item['variant_id']
           ?? ($item['meta']['variantId'] ?? ($item['meta']['variant_id'] ?? $keyVariantId));
 

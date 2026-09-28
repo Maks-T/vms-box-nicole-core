@@ -7,6 +7,7 @@ namespace Nicole\Box\Core\Console\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
 use Nicole\Box\Core\Support\Constants\CatalogType;
+use Nicole\Box\Core\Support\Constants\MediaCollection;
 use Nicole\Box\Core\Models\Channel;
 use Nicole\Box\Core\Models\SettingSchema;
 use Nicole\Box\Core\Models\Currency;
@@ -18,16 +19,20 @@ use Nicole\Box\Core\Models\Attribute;
 use Nicole\Box\Core\Models\PriceGroup;
 use Nicole\Box\Core\Models\ComplexDictionary;
 use Nicole\Box\Core\Models\Product;
+use Nicole\Box\Core\Models\ProductVariant;
 use Nicole\Box\Core\Models\Pipeline;
 use Nicole\Box\Core\Models\PipelineScenario;
 use Nicole\Box\Core\Models\BindingRule;
+use Spatie\MediaLibrary\HasMedia;
 
 class ExportCatalogCommand extends Command
 {
   protected $signature = 'vms:export
-                            {--settings=import/export_settings.json : Путь для сохранения настроек}
-                            {--data=import/export_data.json : Путь для сохранения данных каталога}
-                            {--services=import/export_services.json : Путь для сохранения услуг}
+                            {--dir= : Кастомная директория для сохранения (по умолчанию: storage/app/exports)}
+                            {--settings=export_settings.json : Имя файла для сохранения настроек}
+                            {--data=export_data.json : Имя файла для сохранения данных каталога}
+                            {--services=export_services.json : Имя файла для сохранения услуг}
+                            {--no-images : Отключить выгрузку картинок (по умолчанию включена)}
                             {--only=* : Выборочный экспорт секций (через запятую или отдельными флагами)}
                             {--exclude=* : Исключить секции из экспорта}
                             {--no-descriptions : Не экспортировать описания (description, short_description)}';
@@ -36,18 +41,23 @@ class ExportCatalogCommand extends Command
 
   public function handle(): int
   {
+    $this->info('Базовая папка экспорта: ' . $this->getBaseExportPath());
+    $this->info('Выгрузка картинок: ' . ($this->shouldExportImages() ? 'ВКЛЮЧЕНА (по умолчанию)' : 'ОТКЛЮЧЕНА (--no-images)'));
     $this->info('Начало экспорта VMS Platform...');
+
     if ($this->shouldExport('settings') || $this->shouldExport('channels') || $this->shouldExport('setting_schemas')) {
       $this->exportSettings();
     }
+
     $this->exportData();
+
     $this->info(PHP_EOL . 'Экспорт успешно завершен!');
     return self::SUCCESS;
   }
 
   protected function exportSettings(): void
   {
-    $path = base_path($this->option('settings'));
+    $path = $this->resolveFilePath((string)$this->option('settings'));
     $this->line("Экспорт настроек в $path...");
 
     $settings = [
@@ -64,7 +74,7 @@ class ExportCatalogCommand extends Command
 
   protected function exportData(): void
   {
-    $path = base_path($this->option('data'));
+    $path = $this->resolveFilePath((string)$this->option('data'));
     $this->line("Экспорт данных каталога в $path...");
     if ($this->option('no-descriptions')) {
       $this->warn('  * Режим --no-descriptions активен: текстовые описания будут пропущены.');
@@ -185,8 +195,19 @@ class ExportCatalogCommand extends Command
 
     if ($this->shouldExport('products')) {
       $data['products'] = Product::query()
-        ->with(['type', 'category', 'unit', 'attributeValues.attribute', 'variants.attributeValues.attribute', 'variants.prices.type', 'variants.stocks.warehouse'])
-        ->get()->map(fn($p) => $this->mapProduct($p))
+        ->with([
+          'type',
+          'category',
+          'unit',
+          'media',
+          'attributeValues.attribute',
+          'variants.media',
+          'variants.attributeValues.attribute',
+          'variants.prices.type',
+          'variants.stocks.warehouse',
+        ])
+        ->get()
+        ->map(fn($p) => $this->mapProduct($p))
         ->toArray();
     }
 
@@ -235,11 +256,13 @@ class ExportCatalogCommand extends Command
     }
 
     $this->saveJson($path, $data);
-    //$this->exportServices();
   }
 
   protected function mapProduct(Product $p): array
   {
+    // Экспортируем картинки базового товара в папку products/{slug}
+    $productMediaPaths = $this->exportModelMedia($p, "products/{$p->slug}");
+
     return [
       'external_code' => $p->external_code,
       'product_type_external_code' => $p->type?->external_code,
@@ -249,25 +272,110 @@ class ExportCatalogCommand extends Command
       'slug' => $p->slug,
       'code' => $p->code,
       'name' => $p->getTranslations('name'),
+
+      // Ключи в точности под требования существующего ProductImporter
+      'preview_picture' => $productMediaPaths['preview_picture'],
+      'detail_picture'  => $productMediaPaths['detail_picture'],
+
       'short_description' => $this->shouldIncludeDescriptions() ? $p->getTranslations('short_description') : null,
       'description' => $this->shouldIncludeDescriptions() ? $p->getTranslations('description') : null,
       'is_active' => $p->is_active,
       'eav' => $this->mapEav($p),
-      'variants' => $p->variants->map(fn($v) => [
-        'external_code' => $v->external_code,
-        'price_group_external_code' => $v->priceGroup?->external_code,
-        'sku' => $v->sku,
-        'name' => $v->getTranslations('name'),
-        'cost_price' => $v->cost_price,
-        'currency' => $v->currency,
-        'is_default' => $v->is_default,
-        'is_active' => $v->is_active,
-        'is_manual_pricing' => $v->is_manual_pricing,
-        'markup' => $v->prices->where('type.slug', 'retail')->first()?->markup_percent,
-        'stock' => $v->stock,
-        'eav' => $this->mapEav($v),
-      ])->toArray(),
+      'variants' => $p->variants->map(function ($v) {
+        // Экспортируем персональные картинки варианта (если есть) в variants/{sku}
+        $variantMediaPaths = $this->exportModelMedia($v, "variants/{$v->sku}");
+
+        return [
+          'external_code' => $v->external_code,
+          'price_group_external_code' => $v->priceGroup?->external_code,
+          'sku' => $v->sku,
+          'name' => $v->getTranslations('name'),
+
+          // Ключи в точности под требования существующего ProductImporter (строго null если нет своего фото)
+          'preview_picture' => $variantMediaPaths['preview_picture'],
+          'detail_picture'  => $variantMediaPaths['detail_picture'],
+
+          'cost_price' => $v->cost_price,
+          'currency' => $v->currency,
+          'is_default' => $v->is_default,
+          'is_active' => $v->is_active,
+          'is_manual_pricing' => $v->is_manual_pricing,
+          'markup' => $v->prices->where('type.slug', 'retail')->first()?->markup_percent,
+          'stock' => $v->stock,
+          'eav' => $this->mapEav($v),
+        ];
+      })->toArray(),
     ];
+  }
+
+  /**
+   * Выгрузка картинок preview и main модели в целевую папку и получение относительных путей для ProductImporter
+   *
+   * @return array{preview_picture: ?string, detail_picture: ?string}
+   */
+  protected function exportModelMedia(HasMedia $model, string $subfolder): array
+  {
+    if (!$this->shouldExportImages()) {
+      return ['preview_picture' => null, 'detail_picture' => null];
+    }
+
+    $previewMedia = $model->getFirstMedia(MediaCollection::PREVIEW);
+    $detailMedia = $model->getFirstMedia(MediaCollection::MAIN);
+
+    return [
+      'preview_picture' => $this->copyMediaFile($previewMedia, $subfolder),
+      'detail_picture'  => $this->copyMediaFile($detailMedia, $subfolder),
+    ];
+  }
+
+  /**
+   * Копирование одного файла медиа в папку export_images и возврат чистого относительного пути
+   */
+  protected function copyMediaFile(?object $mediaItem, string $subfolder): ?string
+  {
+    if (!$mediaItem || !method_exists($mediaItem, 'getPath')) {
+      return null;
+    }
+
+    $sourcePath = $mediaItem->getPath();
+    if (!File::exists($sourcePath)) {
+      return null;
+    }
+
+    $fileName = $mediaItem->file_name;
+    $relativeFilePath = "{$subfolder}/{$fileName}";
+    $destinationPath = $this->getBaseExportPath() . '/export_images/' . $relativeFilePath;
+
+    if (!File::isDirectory(dirname($destinationPath))) {
+      File::makeDirectory(dirname($destinationPath), 0755, true);
+    }
+
+    File::copy($sourcePath, $destinationPath);
+
+    return $relativeFilePath;
+  }
+
+  protected function shouldExportImages(): bool
+  {
+    return !(bool)$this->option('no-images');
+  }
+
+  protected function getBaseExportPath(): string
+  {
+    if ($dir = $this->option('dir')) {
+      return str_starts_with($dir, '/') ? $dir : base_path($dir);
+    }
+
+    return storage_path('app/exports');
+  }
+
+  protected function resolveFilePath(string $filename): string
+  {
+    if (str_contains($filename, '/') || str_contains($filename, '\\')) {
+      return str_starts_with($filename, '/') ? $filename : base_path($filename);
+    }
+
+    return $this->getBaseExportPath() . '/' . basename($filename);
   }
 
   protected function mapEav($model): array
@@ -292,39 +400,6 @@ class ExportCatalogCommand extends Command
   protected function resolveTypeKey(?string $morphClass): ?string
   {
     return $morphClass;
-  }
-
-  protected function exportServices(): void //ToDO
-  {
-    $path = base_path($this->option('services'));
-    $services = Product::where('catalog_type', CatalogType::SERVICE)
-      ->with(['attributeValues.attribute', 'variants.attributeValues.attribute', 'unit', 'category'])
-      ->get();
-
-    if ($services->isEmpty()) return;
-
-    $this->line("Экспорт услуг в $path...");
-
-    $export = [
-      'categories' => Category::where('external_code', 'like', 'cat_srv_%')->get()->pluck('name', 'slug')->toArray(),
-      'services' => $services->map(fn($s) => [
-        'slug' => $s->slug,
-        'category' => $s->category?->slug,
-        'unit' => $s->unit?->slug,
-        'name' => $s->getTranslations('name'),
-        'eav' => $this->mapEav($s),
-        'prices' => $s->variants->mapWithKeys(function ($v) {
-          $targetMaterial = $v->attributeValues->firstWhere('attribute.code', 'target_material')?->option?->slug;
-          return [$targetMaterial ?? 'default' => [
-            'cost_price' => $v->cost_price,
-            'currency' => $v->currency,
-            'markup' => $v->prices->where('type.slug', 'retail')->first()?->markup_percent,
-          ]];
-        })->toArray(),
-      ])->values()->toArray(),
-    ];
-
-    $this->saveJson($path, $export);
   }
 
   protected function saveJson(string $path, array $data): void
