@@ -161,12 +161,6 @@ class OrderService
     $calcState = $this->normalizeCalcState($data['calc_state'] ?? null);
     $orderName = $this->resolveOrderName($data, $calcState);
 
-    $managerId = $data['manager_id']
-      ?? ($data['employee_id'] ?? null)
-      ?? ($data['auth']['employee']['id'] ?? null)
-      ?? auth('web')->id()
-      ?? auth()->id();
-
     return Order::create([
       'name' => $orderName,
       'code' => $orderCode,
@@ -178,7 +172,7 @@ class OrderService
       'customer_comment' => $data['customer_comment'] ?? null,
       'manager_comment' => $data['manager_comment'] ?? null,
       'calc_state' => $calcState,
-      'manager_id' => $managerId ? (int)$managerId : null,
+      'manager_id' => !empty($data['manager_id']) ? (int)$data['manager_id'] : null,
     ]);
   }
 
@@ -195,13 +189,6 @@ class OrderService
     $calcState = $this->normalizeCalcState($data['calc_state'] ?? null);
     $orderName = $this->resolveOrderName($data, $calcState);
 
-    $managerId = $data['manager_id']
-      ?? ($data['employee_id'] ?? null)
-      ?? ($data['auth']['employee']['id'] ?? null)
-      ?? auth('web')->id()
-      ?? auth()->id()
-      ?? $order->manager_id;
-
     $order->update([
       'name' => $orderName,
       'customer_id' => $customer ? $customer->id : $order->customer_id,
@@ -210,7 +197,7 @@ class OrderService
       'customer_comment' => $data['customer_comment'] ?? null,
       'manager_comment' => $data['manager_comment'] ?? null,
       'calc_state' => $calcState,
-      'manager_id' => $managerId ? (int)$managerId : null,
+      'manager_id' => !empty($data['manager_id']) ? (int)$data['manager_id'] : null,
     ]);
 
     OrderProduct::where('order_id', $order->id)->delete();
@@ -324,15 +311,6 @@ class OrderService
 
       foreach ($itemList as $item) {
         if (!is_array($item)) continue;
-
-        // Кастомные ручные позиции без привязки к товарам каталога не добавляются в складские OrderProduct
-        if (
-          !empty($item['meta']['is_custom']) ||
-          (array_key_exists('variant_id', $item) && $item['variant_id'] === null) ||
-          (!empty($item['description']) && in_array('Ручная позиция', (array)$item['description'], true))
-        ) {
-          continue;
-        }
 
         $variantId = $item['variant_id']
           ?? ($item['meta']['variantId'] ?? ($item['meta']['variant_id'] ?? $keyVariantId));

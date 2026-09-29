@@ -12,19 +12,27 @@ use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ReplicateAction;
 use Filament\Forms\Components\TextInput;
-use Illuminate\Database\Eloquent\Collection;
-use Filament\Tables\Columns\ImageColumn;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Columns\IconColumn;
-use Filament\Tables\Columns\TextInputColumn;
-use Filament\Tables\Table;
-use Filament\Tables\Enums\FiltersLayout;
 use Filament\Notifications\Notification;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\ImageColumn;
+use Filament\Tables\Columns\SelectColumn;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\TextInputColumn;
+use Filament\Tables\Columns\ToggleColumn;
+use Filament\Tables\Enums\FiltersLayout;
+use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\HtmlString;
+use Nicole\Box\Core\Filament\Helpers\TableHelper;
 use Nicole\Box\Core\Filament\Resources\ProductVariants\Filters\ProductVariantFilters;
+use Nicole\Box\Core\Models\Attribute;
+use Nicole\Box\Core\Models\ProductAttributeValue;
 use Nicole\Box\Core\Models\ProductVariant;
 use Nicole\Box\Core\Services\Catalog\ReplicationService;
 use Nicole\Box\Core\Services\PricingManager;
-use Nicole\Box\Core\Filament\Helpers\TableHelper;
+use Nicole\Box\Core\Support\CatalogCache;
+
 
 class ProductVariantsTable
 {
@@ -85,6 +93,8 @@ class ProductVariantsTable
           ->sortable()
           ->wrap()
           ->toggleable(),
+
+        ...static::buildDynamicAttributeColumns(),
 
         TableHelper::externalCodeColumn(),
 
@@ -276,5 +286,99 @@ class ProductVariantsTable
       ->persistFiltersInSession()
       ->persistSearchInSession()
       ->persistSortInSession();
+  }
+
+  /**
+   * Динамическое формирование колонок EAV-атрибутов с флагом show_in_variant_grid.
+   *
+   * @return array<\Filament\Tables\Columns\Column>
+   * @since 2026-09-29
+   */
+  protected static function buildDynamicAttributeColumns(): array
+  {
+    if (!Schema::hasTable('attribute_ui_settings')) {
+      return [];
+    }
+
+    $user = auth()->user();
+    $attributes = Attribute::query()
+      ->whereHas('uiSetting', fn($q) => $q->where('show_in_variant_grid', true))
+      ->with(['uiSetting', 'options'])
+      ->get()
+      ->sortBy(fn($attr) => $attr->uiSetting?->grid_sort_order ?? 0);
+
+    $columns = [];
+
+    foreach ($attributes as $attribute) {
+      $uiSetting = $attribute->uiSetting;
+      if (!$uiSetting || !$uiSetting->canViewByUser($user)) {
+        continue;
+      }
+
+      $colName = "dyn_attr_{$attribute->code}";
+      $label = (string) ($attribute->getTranslation('name', app()->getLocale()) ?? $attribute->name);
+      $isInline = $uiSetting->is_inline_editable && $uiSetting->canEditByUser($user);
+
+      if ($isInline && $attribute->type === Attribute::TYPE_DICTIONARY) {
+        $options = $attribute->options->pluck('value', 'id')->toArray();
+        $columns[] = SelectColumn::make($colName)
+          ->label($label)
+          ->options($options)
+          ->state(fn(ProductVariant $record) => ($record->attributeValues->firstWhere('attribute_id', $attribute->id)
+            ?? $record->product?->attributeValues->firstWhere('attribute_id', $attribute->id))?->value_option_id
+          )
+          ->updateStateUsing(function (ProductVariant $record, $state) use ($attribute) {
+            ProductAttributeValue::updateOrCreate(
+              ['attributable_id' => $record->id, 'attributable_type' => $record->getMorphClass(), 'attribute_id' => $attribute->id],
+              ['value_option_id' => $state ? (int)$state : null]
+            );
+            CatalogCache::invalidate();
+          })
+          ->toggleable();
+        continue;
+      }
+
+      if ($isInline && $attribute->type === Attribute::TYPE_BOOLEAN) {
+        $columns[] = ToggleColumn::make($colName)
+          ->label($label)
+          ->state(fn(ProductVariant $record) => (bool) $record->attributeValues->firstWhere('attribute_id', $attribute->id)?->value_boolean)
+          ->updateStateUsing(function (ProductVariant $record, $state) use ($attribute) {
+            ProductAttributeValue::updateOrCreate(
+              ['attributable_id' => $record->id, 'attributable_type' => $record->getMorphClass(), 'attribute_id' => $attribute->id],
+              ['value_boolean' => (bool)$state]
+            );
+            CatalogCache::invalidate();
+          })
+          ->toggleable();
+        continue;
+      }
+
+      $col = TextColumn::make($colName)
+        ->label($label)
+        ->state(function (ProductVariant $record) use ($attribute) {
+          $val = $record->attributeValues->firstWhere('attribute_id', $attribute->id)
+            ?? $record->product?->attributeValues->firstWhere('attribute_id', $attribute->id);
+          if (!$val) return null;
+          if ($val->option) return $val->option->getTranslation('value', app()->getLocale()) ?? $val->option->value;
+          if ($val->complexRecord) return $val->complexRecord->getTranslation('name', app()->getLocale()) ?? $val->complexRecord->name;
+          if ($val->value_boolean !== null) return $val->value_boolean ? __('Yes') : __('No');
+          return $val->value_string ?? (string)$val->value_numeric;
+        })
+        ->formatStateUsing(function (ProductVariant $record, $state) use ($attribute, $uiSetting) {
+          if (!$state) return '—';
+          $val = $record->attributeValues->firstWhere('attribute_id', $attribute->id)
+            ?? $record->product?->attributeValues->firstWhere('attribute_id', $attribute->id);
+          $hex = $val?->option?->meta['hex'] ?? null;
+          if ($hex && ($uiSetting->grid_component_type === 'color' || str_contains($attribute->code, 'color'))) {
+            return new HtmlString("<div style='display:inline-flex;align-items:center;gap:6px;'><span style='width:12px;height:12px;border-radius:9999px;background:{$hex};border:1px solid rgba(0,0,0,0.15);'></span><span>{$state}</span></div>");
+          }
+          return $state;
+        })
+        ->toggleable();
+
+      $columns[] = $col;
+    }
+
+    return $columns;
   }
 }

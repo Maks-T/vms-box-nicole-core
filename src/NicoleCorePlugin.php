@@ -25,8 +25,24 @@ class NicoleCorePlugin implements Plugin
     return 'nicole-box-core';
   }
 
+  protected function getSubPlugins(): array
+  {
+    $locales = config('nicole.locales', ['ru', 'en']);
+
+    return [
+      FilamentClearCachePlugin::make(),
+      FilamentShieldPlugin::make()->navigationGroup(__('Access Control')),
+      SpatieTranslatablePlugin::make()->defaultLocales($locales),
+      TranslatableFieldsPlugin::make()->supportedLocales($locales),
+    ];
+  }
+
   public function register(Panel $panel): void
   {
+    foreach ($this->getSubPlugins() as $plugin) {
+      $panel->plugin($plugin);
+    }
+
     $panel->discoverResources(
       in: __DIR__ . '/Filament/Resources',
       for: 'Nicole\\Box\\Core\\Filament\\Resources',
@@ -47,30 +63,21 @@ class NicoleCorePlugin implements Plugin
       for: 'Nicole\\Box\\Core\\Filament\\Widgets',
     );
 
-    $locales = config('nicole.locales', ['ru']);
-
-    $panel->plugins([
-      FilamentClearCachePlugin::make(),
-      FilamentShieldPlugin::make()->navigationGroup(__('Access Control')),
-      SpatieTranslatablePlugin::make()->defaultLocales($locales),
-      TranslatableFieldsPlugin::make()->supportedLocales($locales),
-    ]);
-
-    $panel
-      ->renderHook(
-        PanelsRenderHook::GLOBAL_SEARCH_BEFORE,
-        fn () => view('nicole-core::filament.components.topbar-calculator-button')
-      );
+    $panel->renderHook(
+      PanelsRenderHook::GLOBAL_SEARCH_BEFORE,
+      fn () => view('nicole-core::filament.components.topbar-calculator-button')
+    );
   }
 
   public function boot(Panel $panel): void
   {
-    //
+    foreach ($this->getSubPlugins() as $plugin) {
+      $plugin->boot($panel);
+    }
   }
 
   public static function make(): static
   {
     return new static;
   }
-
 }
