@@ -35,12 +35,14 @@ use Nicole\Box\Core\Models\Pipeline;
 use Nicole\Box\Core\Models\ProductVariant;
 use Nicole\Box\Core\Services\Calculator\PipelineTreeService;
 use Nicole\Box\Core\Support\Pipelines\PipelineEntityResolver;
+use BezhanSalleh\FilamentShield\Traits\HasPageShield;
 
 class PipelineChainsPage extends Page implements HasForms, HasTable, HasActions
 {
   use InteractsWithForms;
   use InteractsWithTable;
   use InteractsWithActions;
+  use HasPageShield;
 
   protected static ?string $cluster = PipelineCluster::class;
   protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedQueueList;

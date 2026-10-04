@@ -16,6 +16,7 @@ use Spatie\MediaLibrary\HasMedia;
 use Spatie\Translatable\HasTranslations;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Casts\Attribute as EloquentAttribute;
+use Nicole\Box\Core\Services\Catalog\SkuGeneratorService;
 
 class ProductVariant extends Model implements HasMedia
 {
@@ -95,6 +96,15 @@ class ProductVariant extends Model implements HasMedia
 
   protected static function booted(): void
   {
+    // @since 2026-09-29: Автогенерация уникального SKU при создании или очистке поля
+    static::saving(function (ProductVariant $variant) {
+      if (empty($variant->sku)) {
+        $variant->sku = app(SkuGeneratorService::class)->generate(
+          $variant->product ?? $variant->product_id
+        );
+      }
+    });
+
     // Пересчет цен базового товара
     $callback = function (ProductVariant $variant) {
       $variant->product?->refreshMinPrice();

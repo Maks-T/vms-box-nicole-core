@@ -4,11 +4,24 @@ declare(strict_types=1);
 
 namespace Nicole\Box\Core\Filament\Resources\Products\Tables;
 
+use Filament\Actions\ActionGroup;
+use Filament\Actions\BulkAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\ReplicateAction;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
+use Filament\Notifications\Notification;
+use Illuminate\Database\Eloquent\Collection;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Enums\FiltersLayout;
 use Filament\Tables\Table;
 use Nicole\Box\Core\Filament\Helpers\TableHelper;
 use Nicole\Box\Core\Filament\Resources\Products\Filters\ProductFilters;
+use Nicole\Box\Core\Models\Product;
+use Nicole\Box\Core\Services\Catalog\ReplicationService;
 use Nicole\Box\Core\Services\PricingManager;
 
 class ProductsTable
@@ -94,6 +107,66 @@ class ProductsTable
       ->filtersLayout(FiltersLayout::AboveContent)
       ->filtersFormColumns(3)
       ->filters(ProductFilters::all())
+      ->recordActions([
+        ActionGroup::make([
+          EditAction::make(),
+          ReplicateAction::make()
+            ->label(__('Replicate'))
+            ->modalHeading(__('Replicate Product'))
+            ->schema([
+              TextInput::make('slug')
+                ->label(__('Slug'))
+                ->required()
+                ->default(fn (Product $record, ReplicationService $service): string => $service->generateUniqueProductSlug((string) $record->slug))
+                ->maxLength(255),
+              TextInput::make('name')
+                ->label(__('Product Name'))
+                ->placeholder(fn (Product $record): ?string => $record->getTranslation('name', app()->getLocale(), false)),
+              Toggle::make('with_variants')
+                ->label(__('Duplicate with variants (SKUs)'))
+                ->helperText(__('If enabled, all variations will be cloned with their prices and attributes'))
+                ->default(true),
+            ])
+            ->action(function (Product $record, array $data, ReplicationService $service): void {
+              $overrides = ['slug' => $data['slug']];
+              if (!empty($data['name'])) {
+                $overrides['name'] = [app()->getLocale() => $data['name']];
+              }
+              $withVariants = (bool) ($data['with_variants'] ?? true);
+              $replica = $service->replicateProduct($record, $withVariants, $overrides);
+
+              Notification::make()
+                ->success()
+                ->title(__('Product duplicated: :name', ['name' => $replica->name]))
+                ->send();
+            }),
+          DeleteAction::make(),
+        ]),
+      ])
+      ->toolbarActions([
+        BulkActionGroup::make([
+          BulkAction::make('replicate')
+            ->label(__('Replicate'))
+            ->icon('heroicon-o-document-duplicate')
+            ->requiresConfirmation()
+            ->modalHeading(__('Replicate selected products'))
+            ->action(function (Collection $records, ReplicationService $service): void {
+              $count = 0;
+              foreach ($records as $record) {
+                if ($record instanceof Product) {
+                  $service->replicateProduct($record, true);
+                  $count++;
+                }
+              }
+              Notification::make()
+                ->success()
+                ->title(__('Successfully duplicated :count products', ['count' => $count]))
+                ->send();
+            })
+            ->deselectRecordsAfterCompletion(),
+          DeleteBulkAction::make(),
+        ]),
+      ])
       ->persistFiltersInSession()
       ->persistSearchInSession()
       ->persistSortInSession();

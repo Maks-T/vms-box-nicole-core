@@ -95,6 +95,66 @@ class AttributeForm
                 ->columns(2),
             ]),
 
+          Tabs\Tab::make(__('Admin Display & Grid'))
+            ->icon('heroicon-o-table-cells')
+            ->schema([
+              Section::make(__('Table & Grid Representation'))
+                ->relationship('uiSetting')
+                ->schema([
+                  Toggle::make('show_in_variant_grid')
+                    ->label(__('Show in Variant Grid'))
+                    ->default(false),
+
+                  Toggle::make('show_in_product_grid')
+                    ->label(__('Show in Product Grid'))
+                    ->default(false),
+
+                  Select::make('grid_component_type')
+                    ->label(__('Display Component Type'))
+                    ->options([
+                      'auto' => __('Auto'),
+                      'color' => __('Color Swatch'),
+                      'badge' => __('Badge'),
+                      'text' => __('Plain Text'),
+                      'boolean' => __('Boolean Icon'),
+                    ])
+                    ->default('auto')
+                    ->native(false),
+
+                  TextInput::make('grid_sort_order')
+                    ->label(__('Column Sort Order'))
+                    ->numeric()
+                    ->default(0),
+
+                  Toggle::make('is_inline_editable')
+                    ->label(__('Inline Editable in Grid'))
+                    ->default(false),
+
+                  Toggle::make('is_filterable')
+                    ->label(__('Filterable in Admin'))
+                    ->default(false),
+
+                  Toggle::make('is_searchable')
+                    ->label(__('Searchable in Admin'))
+                    ->default(false),
+
+                  Select::make('view_roles')
+                    ->label(__('Roles Allowed to View'))
+                    ->options(fn () => config('nicole.models.role', \Nicole\Box\Core\Models\Role::class)::pluck('name', 'name'))
+                    ->multiple()
+                    ->preload()
+                    ->searchable(),
+
+                  Select::make('edit_roles')
+                    ->label(__('Roles Allowed to Edit Inline'))
+                    ->options(fn () => config('nicole.models.role', \Nicole\Box\Core\Models\Role::class)::pluck('name', 'name'))
+                    ->multiple()
+                    ->preload()
+                    ->searchable(),
+                ])
+                ->columns(2),
+            ]),
+
           SalesChannelsTab::make('attribute'),
         ])
         ->columnSpanFull(),

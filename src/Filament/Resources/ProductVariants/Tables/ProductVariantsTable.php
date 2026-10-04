@@ -4,20 +4,35 @@ declare(strict_types=1);
 
 namespace Nicole\Box\Core\Filament\Resources\ProductVariants\Tables;
 
+use Filament\Actions\ActionGroup;
+use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
-use Filament\Tables\Columns\ImageColumn;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Columns\IconColumn;
-use Filament\Tables\Columns\TextInputColumn;
-use Filament\Tables\Table;
-use Filament\Tables\Enums\FiltersLayout;
+use Filament\Actions\ReplicateAction;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
-use Nicole\Box\Core\Filament\Resources\ProductVariants\Filters\ProductVariantFilters;
-use Nicole\Box\Core\Models\ProductVariant;
-use Nicole\Box\Core\Services\PricingManager;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\ImageColumn;
+use Filament\Tables\Columns\SelectColumn;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\TextInputColumn;
+use Filament\Tables\Columns\ToggleColumn;
+use Filament\Tables\Enums\FiltersLayout;
+use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\HtmlString;
 use Nicole\Box\Core\Filament\Helpers\TableHelper;
+use Nicole\Box\Core\Filament\Resources\ProductVariants\Filters\ProductVariantFilters;
+use Nicole\Box\Core\Models\Attribute;
+use Nicole\Box\Core\Models\ProductAttributeValue;
+use Nicole\Box\Core\Models\ProductVariant;
+use Nicole\Box\Core\Services\Catalog\ReplicationService;
+use Nicole\Box\Core\Services\PricingManager;
+use Nicole\Box\Core\Support\CatalogCache;
+
 
 class ProductVariantsTable
 {
@@ -47,6 +62,22 @@ class ProductVariantsTable
           ->fontFamily('mono')
           ->toggleable(),
 
+        TextColumn::make('name')
+          ->label(__('Variant Name'))
+          ->state(function (ProductVariant $record) {
+            $locale = app()->getLocale();
+            return $record->getTranslation('name', $locale)
+              ?: ($record->getTranslation('name', 'ru') ?: '—');
+          })
+          ->searchable(query: function (\Illuminate\Database\Eloquent\Builder $query, string $search): \Illuminate\Database\Eloquent\Builder {
+            return $query->where('name->ru', 'ilike', "%{$search}%")
+              ->orWhere('name->en', 'ilike', "%{$search}%");
+          })
+          ->sortable()
+          ->weight('medium')
+          ->wrap()
+          ->toggleable(),
+
         TextColumn::make('product.name')
           ->label(__('Parent Product'))
           ->state(function (ProductVariant $record) {
@@ -62,6 +93,8 @@ class ProductVariantsTable
           ->sortable()
           ->wrap()
           ->toggleable(),
+
+        ...static::buildDynamicAttributeColumns(),
 
         TableHelper::externalCodeColumn(),
 
@@ -193,11 +226,159 @@ class ProductVariantsTable
       ->filtersLayout(FiltersLayout::AboveContent)
       ->filtersFormColumns(3)
       ->filters(ProductVariantFilters::all())
-      ->recordActions([EditAction::make()])
-      ->toolbarActions([BulkActionGroup::make([DeleteBulkAction::make()])])
+      ->recordActions([
+        ActionGroup::make([
+          EditAction::make(),
+          ReplicateAction::make()
+            ->label(__('Replicate'))
+            ->modalHeading(__('Replicate Variant'))
+            ->schema([
+              TextInput::make('sku')
+                ->label(__('SKU / Article'))
+                ->required()
+                ->default(fn (ProductVariant $record, ReplicationService $service): string => $service->generateUniqueVariantSku((string) $record->sku))
+                ->maxLength(255),
+              TextInput::make('name')
+                ->label(__('Variant Name'))
+                ->placeholder(fn (ProductVariant $record): ?string => $record->getTranslation('name', app()->getLocale(), false)),
+            ])
+            ->action(function (ProductVariant $record, array $data, ReplicationService $service): void {
+              $overrides = ['sku' => $data['sku']];
+              if (!empty($data['name'])) {
+                $overrides['name'] = [app()->getLocale() => $data['name']];
+              }
+              $replica = $service->replicateVariant($record, $overrides);
+
+              Notification::make()
+                ->success()
+                ->title(__('Variant duplicated: :sku', ['sku' => $replica->sku]))
+                ->send();
+            }),
+          DeleteAction::make(),
+        ]),
+      ])
+      ->toolbarActions([
+        BulkActionGroup::make([
+          BulkAction::make('replicate')
+            ->label(__('Replicate'))
+            ->icon('heroicon-o-document-duplicate')
+            ->requiresConfirmation()
+            ->modalHeading(__('Replicate selected variants'))
+            ->action(function (Collection $records, ReplicationService $service): void {
+              $count = 0;
+              foreach ($records as $record) {
+                if ($record instanceof ProductVariant) {
+                  $service->replicateVariant($record);
+                  $count++;
+                }
+              }
+
+              Notification::make()
+                ->success()
+                ->title(__('Successfully duplicated :count variants', ['count' => $count]))
+                ->send();
+            })
+            ->deselectRecordsAfterCompletion(),
+          DeleteBulkAction::make(),
+        ]),
+      ])
       ->defaultSort('updated_at', 'desc')
       ->persistFiltersInSession()
       ->persistSearchInSession()
       ->persistSortInSession();
+  }
+
+  /**
+   * Динамическое формирование колонок EAV-атрибутов с флагом show_in_variant_grid.
+   *
+   * @return array<\Filament\Tables\Columns\Column>
+   * @since 2026-09-29
+   */
+  protected static function buildDynamicAttributeColumns(): array
+  {
+    if (!Schema::hasTable('attribute_ui_settings')) {
+      return [];
+    }
+
+    $user = auth()->user();
+    $attributes = Attribute::query()
+      ->whereHas('uiSetting', fn($q) => $q->where('show_in_variant_grid', true))
+      ->with(['uiSetting', 'options'])
+      ->get()
+      ->sortBy(fn($attr) => $attr->uiSetting?->grid_sort_order ?? 0);
+
+    $columns = [];
+
+    foreach ($attributes as $attribute) {
+      $uiSetting = $attribute->uiSetting;
+      if (!$uiSetting || !$uiSetting->canViewByUser($user)) {
+        continue;
+      }
+
+      $colName = "dyn_attr_{$attribute->code}";
+      $label = (string) ($attribute->getTranslation('name', app()->getLocale()) ?? $attribute->name);
+      $isInline = $uiSetting->is_inline_editable && $uiSetting->canEditByUser($user);
+
+      if ($isInline && $attribute->type === Attribute::TYPE_DICTIONARY) {
+        $options = $attribute->options->pluck('value', 'id')->toArray();
+        $columns[] = SelectColumn::make($colName)
+          ->label($label)
+          ->options($options)
+          ->state(fn(ProductVariant $record) => ($record->attributeValues->firstWhere('attribute_id', $attribute->id)
+            ?? $record->product?->attributeValues->firstWhere('attribute_id', $attribute->id))?->value_option_id
+          )
+          ->updateStateUsing(function (ProductVariant $record, $state) use ($attribute) {
+            ProductAttributeValue::updateOrCreate(
+              ['attributable_id' => $record->id, 'attributable_type' => $record->getMorphClass(), 'attribute_id' => $attribute->id],
+              ['value_option_id' => $state ? (int)$state : null]
+            );
+            CatalogCache::invalidate();
+          })
+          ->toggleable();
+        continue;
+      }
+
+      if ($isInline && $attribute->type === Attribute::TYPE_BOOLEAN) {
+        $columns[] = ToggleColumn::make($colName)
+          ->label($label)
+          ->state(fn(ProductVariant $record) => (bool) $record->attributeValues->firstWhere('attribute_id', $attribute->id)?->value_boolean)
+          ->updateStateUsing(function (ProductVariant $record, $state) use ($attribute) {
+            ProductAttributeValue::updateOrCreate(
+              ['attributable_id' => $record->id, 'attributable_type' => $record->getMorphClass(), 'attribute_id' => $attribute->id],
+              ['value_boolean' => (bool)$state]
+            );
+            CatalogCache::invalidate();
+          })
+          ->toggleable();
+        continue;
+      }
+
+      $col = TextColumn::make($colName)
+        ->label($label)
+        ->state(function (ProductVariant $record) use ($attribute) {
+          $val = $record->attributeValues->firstWhere('attribute_id', $attribute->id)
+            ?? $record->product?->attributeValues->firstWhere('attribute_id', $attribute->id);
+          if (!$val) return null;
+          if ($val->option) return $val->option->getTranslation('value', app()->getLocale()) ?? $val->option->value;
+          if ($val->complexRecord) return $val->complexRecord->getTranslation('name', app()->getLocale()) ?? $val->complexRecord->name;
+          if ($val->value_boolean !== null) return $val->value_boolean ? __('Yes') : __('No');
+          return $val->value_string ?? (string)$val->value_numeric;
+        })
+        ->formatStateUsing(function (ProductVariant $record, $state) use ($attribute, $uiSetting) {
+          if (!$state) return '—';
+          $val = $record->attributeValues->firstWhere('attribute_id', $attribute->id)
+            ?? $record->product?->attributeValues->firstWhere('attribute_id', $attribute->id);
+          $hex = $val?->option?->meta['hex'] ?? null;
+          if ($hex && ($uiSetting->grid_component_type === 'color' || str_contains($attribute->code, 'color'))) {
+            return new HtmlString("<div style='display:inline-flex;align-items:center;gap:6px;'><span style='width:12px;height:12px;border-radius:9999px;background:{$hex};border:1px solid rgba(0,0,0,0.15);'></span><span>{$state}</span></div>");
+          }
+          return $state;
+        })
+        ->toggleable();
+
+      $columns[] = $col;
+    }
+
+    return $columns;
   }
 }

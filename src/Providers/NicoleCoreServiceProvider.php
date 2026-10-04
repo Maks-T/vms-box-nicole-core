@@ -9,6 +9,7 @@ use Nicole\Box\Core\CoreConfig;
 use Nicole\Box\Core\Services\PricingManager;
 use Nicole\Box\Core\Models\Media;
 use Nicole\Box\Core\Support\Media\NicolePathGenerator;
+use Illuminate\Support\Facades\Gate;
 
 class NicoleCoreServiceProvider extends ServiceProvider
 {
@@ -41,6 +42,8 @@ class NicoleCoreServiceProvider extends ServiceProvider
 
     $this->loadViewsFrom(__DIR__ . '/../../resources/views', 'nicole-core');
 
+    $this->registerCorePolicies();
+
     if ($this->app->runningInConsole()) {
       $this->commands([
         \Nicole\Box\Core\Console\Commands\ImportCatalogCommand::class,
@@ -66,4 +69,30 @@ class NicoleCoreServiceProvider extends ServiceProvider
       ]);
     }
   }
+
+  /**
+   * Автоматическое сопоставление моделей ядра с их политиками.
+   * Приоритет: 1)
+   *   - App\Policies (переопределение в проекте)
+   *   - Nicole\Box\Core\Policies (ядро).
+   */
+  protected function registerCorePolicies(): void
+  {
+    Gate::guessPolicyNamesUsing(function (string $modelClass) {
+      $basename = class_basename($modelClass);
+
+      // Сначала проверяем, переопределена ли политика в самом проекте (App\Policies)
+      if (class_exists($appPolicy = "App\\Policies\\{$basename}Policy")) {
+        return $appPolicy;
+      }
+
+      // По умолчанию берём стандартную политику из ядра (Nicole\Box\Core\Policies)
+      if (class_exists($corePolicy = "Nicole\\Box\\Core\\Policies\\{$basename}Policy")) {
+        return $corePolicy;
+      }
+
+      return null;
+    });
+  }
+
 }
