@@ -123,7 +123,12 @@ class PricingManager
     }
 
     $markupKey = $field . '_markup_' . $priceType->slug;
-    $markup = (float)($meta[$markupKey] ?? ($meta[$field . '_markup'] ?? 0));
+    $markup = (float)(
+      $meta[$markupKey]
+      ?? ($meta['markup_' . $priceType->slug]
+      ?? ($meta[$field . '_markup']
+      ?? ($meta['markup'] ?? 0)))
+    );
 
     $baseCurrencyCode = $this->baseCurrency->code;
     $currencyCode = $meta['purchase_currency'] ?? 'USD';
