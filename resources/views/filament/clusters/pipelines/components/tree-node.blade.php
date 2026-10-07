@@ -101,7 +101,7 @@
                 class="text-xs font-semibold text-gray-500 dark:text-gray-400 tracking-wider">{{ __('ID') }}: {{ $entityId }}</span>
               <div class="flex items-start gap-2 mt-0.5">
                 <span class="text-sm font-bold leading-tight text-gray-900 dark:text-white">{{ $name }}</span>
-                @if($slug)
+                @if($slug && \Illuminate\Support\Facades\Route::has('product.show'))
                   <a href="{{ route('product.show', $slug) }}" target="_blank"
                      class="shrink-0 text-gray-400 hover:text-primary-600 transition">
                     <x-filament::icon icon="heroicon-m-arrow-top-right-on-square" class="w-4 h-4 mt-0.5"/>
