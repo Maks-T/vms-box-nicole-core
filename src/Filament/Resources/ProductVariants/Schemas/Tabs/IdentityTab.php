@@ -10,8 +10,12 @@ use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Components\Utilities\Get;
+use Illuminate\Database\Eloquent\Model;
 use Filament\Resources\RelationManagers\RelationManager;
 use Livewire\Component;
+use Nicole\Box\Core\Filament\Resources\ProductVariants\Schemas\ProductVariantForm;
+use Nicole\Box\Core\Services\Catalog\SkuGeneratorService;
 
 class IdentityTab
 {
@@ -38,9 +42,25 @@ class IdentityTab
 
               TextInput::make('sku')
                 ->label(__('SKU / Article'))
-                ->required()
+                ->nullable()
+                ->placeholder(__('Auto-generated if left blank'))
+                ->helperText(__('Leave blank to generate automatically according to product code.'))
                 ->unique(ignoreRecord: true)
+                ->dehydrateStateUsing(function ($state, Get $get, ?Model $record, ?Component $livewire) {
+                  if (filled($state)) {
+                    return $state;
+                  }
+                  $product = ProductVariantForm::resolveProduct($get, $record, $livewire);
+                  return app(SkuGeneratorService::class)->generate($product);
+                })
                 ->maxLength(255),
+
+              TextInput::make('name')
+                ->label(__('Variant Name'))
+                ->placeholder(__('Leave empty to inherit parent product name'))
+                ->helperText(__('If left empty, the parent product name will be used.'))
+                ->translatable()
+                ->columnSpanFull(),
 
               TextInput::make('external_code')
                 ->label(__('External Code'))

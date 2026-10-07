@@ -96,8 +96,17 @@ class OrderController extends Controller
   {
     $code = $request->input('code');
     $order = $code ? Order::where('code', $code)->first() : null;
+    $data = $request->all();
 
-    $savedOrder = $this->orderService->storeOrUpdate($request->all(), $order, $request->ip());
+    // Автоматический перехват ID авторизованного менеджера
+    if (empty($data['manager_id'])) {
+      $data['manager_id'] = $request->input('auth.employee.id')
+        ?? $request->user('web')?->id
+        ?? auth('web')->id()
+        ?? auth()->id();
+    }
+
+    $savedOrder = $this->orderService->storeOrUpdate($data, $order, $request->ip());
 
     return $this->buildResponse($savedOrder);
   }

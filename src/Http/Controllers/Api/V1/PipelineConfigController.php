@@ -12,6 +12,8 @@ use Nicole\Box\Core\Http\Resources\Api\V1\Pipeline\PipelineConfigShowResource;
 use Nicole\Box\Core\Http\Resources\Api\V1\Pipeline\PipelineDetailResource;
 use Nicole\Box\Core\Http\Resources\Api\V1\Pipeline\PipelineRootEntityResource;
 use Nicole\Box\Core\Models\Attribute;
+use Nicole\Box\Core\Models\ComplexDictionary;
+use Nicole\Box\Core\Models\ComplexDictionaryRecord;
 use Nicole\Box\Core\Models\BindingRule;
 use Nicole\Box\Core\Models\Pipeline;
 use Nicole\Box\Core\Models\ProductVariant;
@@ -109,7 +111,13 @@ class PipelineConfigController extends Controller
       return $this->showRootEntities($pipelineModel);
     }
 
-    $entityType = (string) $request->query('entity_type', ET::PRODUCT_VARIANT);
+    $defaultEntityType = ET::PRODUCT_VARIANT;
+    $rootTypeCode = $this->treeService->resolveRootTypeCode($pipelineModel);
+    if ($rootTypeCode && ComplexDictionary::where('code', $rootTypeCode)->exists()) {
+      $defaultEntityType = ET::COMPLEX_DICTIONARY_RECORD;
+    }
+
+    $entityType = (string) $request->query('entity_type', $defaultEntityType);
 
     return $this->showPipelineTree($pipelineModel, (int) $resolvedId, $entityType);
   }
@@ -120,6 +128,23 @@ class PipelineConfigController extends Controller
   private function showRootEntities(Pipeline $pipeline): JsonResponse
   {
     $rootTypeCode = $this->treeService->resolveRootTypeCode($pipeline);
+
+    $dictionary = $rootTypeCode ? ComplexDictionary::where('code', $rootTypeCode)->first() : null;
+    if ($dictionary) {
+      $rootEntities = ComplexDictionaryRecord::query()
+        ->where('dictionary_id', $dictionary->id)
+        ->where('is_active', true)
+        ->orderBy('sort_order')
+        ->get();
+
+      return response()->json([
+        'status' => 'success',
+        'data' => [
+          'pipeline' => new PipelineDetailResource($pipeline),
+          'root_entities' => PipelineRootEntityResource::collection($rootEntities),
+        ]
+      ]);
+    }
 
     $configuredVariantIds = BindingRule::query()
       ->where('pipeline_id', $pipeline->id)

@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Nicole\Box\Core\Traits\HasExternalCode;
 use Nicole\Box\Core\Traits\HasSettings;
 use Spatie\Translatable\HasTranslations;
@@ -52,6 +53,11 @@ class Attribute extends Model
   public function options(): HasMany
   {
     return $this->hasMany(AttributeOption::class)->orderBy('sort_order');
+  }
+
+  public function uiSetting(): HasOne
+  {
+    return $this->hasOne(AttributeUiSetting::class, 'attribute_id');
   }
 
   public function unit(): BelongsTo
