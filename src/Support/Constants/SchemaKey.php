@@ -14,4 +14,7 @@ class SchemaKey
   public const string DEFAULT = 'default';
   public const string IS_PUBLIC = 'is_public';
   public const string OPTIONS = 'options';
+  public const string TARGET_ENTITY = 'target_entity';
+  public const string VALUE_KEY = 'value_key';
+  public const string FILTER = 'filter';
 }

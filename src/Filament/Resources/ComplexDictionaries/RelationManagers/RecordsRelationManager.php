@@ -27,6 +27,7 @@ use Nicole\Box\Core\Filament\Forms\Tabs\SalesChannelsTab;
 use Nicole\Box\Core\Filament\Helpers\FormHelper;
 use Nicole\Box\Core\Support\Constants\SchemaKey;
 use Nicole\Box\Core\Support\Constants\SchemaFieldType;
+use Nicole\Box\Core\Support\Dictionaries\DictionaryEntityResolver;
 
 class RecordsRelationManager extends RelationManager
 {
@@ -49,12 +50,12 @@ class RecordsRelationManager extends RelationManager
         ? $field[SchemaKey::LABEL][app()->getLocale()] ?? (collect($field[SchemaKey::LABEL])->first() ?? $key)
         : $field[SchemaKey::LABEL];
 
-      $processed[] = [
+      $processed[] = array_merge($field, [
         SchemaKey::KEY => $key,
         SchemaKey::TYPE => $field[SchemaKey::TYPE],
         SchemaKey::LABEL => $label,
         'payloadKey' => "meta.{$key}",
-      ];
+      ]);
     }
 
     return $processed;
@@ -68,6 +69,7 @@ class RecordsRelationManager extends RelationManager
       $input = match ($field[SchemaKey::TYPE]) {
         SchemaFieldType::BOOLEAN => Toggle::make($field['payloadKey'])->inline(false),
         SchemaFieldType::NUMBER => TextInput::make($field['payloadKey'])->numeric(),
+        SchemaFieldType::ENTITY => DictionaryEntityResolver::resolveFormComponent($field, $field['payloadKey']),
         default => TextInput::make($field['payloadKey']),
       };
       $dynamicComponents[] = $input->label((string) $field[SchemaKey::LABEL]);
@@ -128,6 +130,14 @@ class RecordsRelationManager extends RelationManager
           ->label($field[SchemaKey::LABEL])
           ->numeric()
           ->sortable()
+          ->toggleable();
+      } elseif ($field[SchemaKey::TYPE] === SchemaFieldType::ENTITY) {
+        $columns[] = TextColumn::make($field['payloadKey'])
+          ->label($field[SchemaKey::LABEL])
+          ->formatStateUsing(fn ($state) => DictionaryEntityResolver::resolveDisplayLabel($field, $state))
+          ->badge()
+          ->color('info')
+          ->searchable()
           ->toggleable();
       } else {
         $columns[] = TextColumn::make($field['payloadKey'])
