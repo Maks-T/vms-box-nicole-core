@@ -7,6 +7,7 @@ namespace Nicole\Box\Core\Services;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Nicole\Box\Core\Events\OrderCheckoutSubmitted;
 use Nicole\Box\Core\Models\Customer;
 use Nicole\Box\Core\Models\Order;
 use Nicole\Box\Core\Models\OrderSection;
@@ -30,6 +31,8 @@ class OrderService
    */
   public function storeOrUpdate(array $data, ?Order $order = null, ?string $ipAddress = null): Order
   {
+    $hasCustomerContacts = !empty($data['customer']['phone']) || !empty($data['customer']['email']);
+
     return DB::transaction(function () use ($data, $order, $ipAddress) {
       $customer = $this->firstOrCreateCustomer($data['customer'] ?? null, $ipAddress);
 
@@ -40,6 +43,10 @@ class OrderService
       }
 
       $this->recreateSectionsAndProducts($order, $data['results'] ?? []);
+
+      if (!empty($data['customer']['phone']) || !empty($data['customer']['email'])) {
+        event(new OrderCheckoutSubmitted($order, $data));
+      }
 
       return $order;
     });

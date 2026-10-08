@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Nicole\Box\Core\Providers;
 
+use Illuminate\Support\Facades\Event;
+use Nicole\Box\Core\Events\OrderCheckoutSubmitted;
+use Nicole\Box\Core\Listeners\SendOrderNotificationsListener;
 use Illuminate\Support\ServiceProvider;
 use Nicole\Box\Core\CoreConfig;
 use Nicole\Box\Core\Services\PricingManager;
@@ -40,6 +43,7 @@ class NicoleCoreServiceProvider extends ServiceProvider
   public function boot(): void
   {
 
+    Event::listen(OrderCheckoutSubmitted::class, SendOrderNotificationsListener::class);
     $this->loadViewsFrom(__DIR__ . '/../../resources/views', 'nicole-core');
 
     $this->registerCorePolicies();
