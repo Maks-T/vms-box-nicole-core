@@ -66,12 +66,15 @@ class CalculatorWebhookController extends Controller
     $wrapperPath = config('nicole.deploy_widget_wrapper', '/usr/bin/sudo /var/www/scripts/deploy-wrapper.sh');
 
     $branch = $request->input('branch', 'deploy/build');
-    $safeBranch = preg_replace('/[^a-zA-Z0-9\/\.\-_]/', '', $branch);
+    $defaultWidget = (string) (config('nicole.active_widget') ?? env('VMS_ACTIVE_WIDGET', 'widget'));
+    $widget = $request->input('widget') ?: $defaultWidget;
+    $safeBranch = preg_replace('/[^a-zA-Z0-9\/\.\-_]/', '', (string)$branch);
+    $safeWidget = preg_replace('/[^a-zA-Z0-9\-_]/', '', (string)$widget);
 
     $absoluteHookPath = base_path($scriptName);
 
     try {
-      $result = Process::run("{$wrapperPath} {$absoluteHookPath} {$safeBranch}");
+      $result = Process::run("{$wrapperPath} {$absoluteHookPath} {$safeBranch} {$safeWidget}");
 
       if ($result->successful()) {
         cache()->forget(self::CACHE_KEY);
