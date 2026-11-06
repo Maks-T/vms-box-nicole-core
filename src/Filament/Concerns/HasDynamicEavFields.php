@@ -37,15 +37,14 @@ trait HasDynamicEavFields
       ];
     }
 
-    $productType = ProductType::with([
-      'attributes' => function ($query) {
-        $query->orderBy('attribute_product_type.sort_order');
-      },
-    ])->find($productTypeId);
+    $productType = static::loadEavProductType($productTypeId);
 
     if (!$productType) {
       return [];
     }
+
+    // @since 2026-11-06: все записи сложных справочников для этого типа - одним запросом
+    $complexOptions = static::loadComplexOptions($productType);
 
     $fields = [];
     foreach ($productType->attributes as $attribute) {
@@ -74,15 +73,7 @@ trait HasDynamicEavFields
           ->multiple((bool)$attribute->is_multiple),
 
         Attribute::TYPE_COMPLEX => Select::make("eav.{$attribute->id}")
-          ->options(
-            ComplexDictionaryRecord::where(
-              'dictionary_id',
-              $attribute->complex_dictionary_id,
-            )
-              ->where('is_active', true)
-              ->get()
-              ->pluck('name', 'id'),
-          )
+          ->options($complexOptions[$attribute->complex_dictionary_id] ?? [])
           ->searchable()
           ->preload()
           ->multiple((bool)$attribute->is_multiple),
@@ -110,6 +101,69 @@ trait HasDynamicEavFields
         ->schema($fields)
         ->columnSpanFull(),
     ];
+  }
+
+  /**
+   * Кэш на время HTTP-запроса: схема вкладки «Характеристики» вычисляется Filament
+   * многократно (рендер, валидация, каждый live-апдейт).
+   *
+   * @var array<int, ProductType|null>
+   * @since 2026-11-06
+   */
+  private static array $eavProductTypeCache = [];
+
+  /**
+   * @var array<int, array<int|string, array<int|string, string>>>
+   * @since 2026-11-06
+   */
+  private static array $eavComplexOptionsCache = [];
+
+  /**
+   * @since 2026-11-06
+   */
+  protected static function loadEavProductType(int $productTypeId): ?ProductType
+  {
+    if (!array_key_exists($productTypeId, self::$eavProductTypeCache)) {
+      self::$eavProductTypeCache[$productTypeId] = ProductType::with([
+        'attributes' => function ($query) {
+          $query->orderBy('attribute_product_type.sort_order');
+        },
+        'attributes.unit',
+        'attributes.options',
+      ])->find($productTypeId);
+    }
+
+    return self::$eavProductTypeCache[$productTypeId];
+  }
+
+  /**
+   * @return array<int|string, array<int|string, string>> dictionary_id => [record_id => name]
+   * @since 2026-11-06
+   */
+  protected static function loadComplexOptions(ProductType $productType): array
+  {
+    $typeId = (int)$productType->getKey();
+
+    if (!array_key_exists($typeId, self::$eavComplexOptionsCache)) {
+      $dictionaryIds = $productType->attributes
+        ->where('type', Attribute::TYPE_COMPLEX)
+        ->pluck('complex_dictionary_id')
+        ->filter()
+        ->unique()
+        ->values();
+
+      self::$eavComplexOptionsCache[$typeId] = $dictionaryIds->isEmpty()
+        ? []
+        : ComplexDictionaryRecord::query()
+          ->whereIn('dictionary_id', $dictionaryIds)
+          ->where('is_active', true)
+          ->get(['id', 'dictionary_id', 'name'])
+          ->groupBy('dictionary_id')
+          ->map(fn($records) => $records->pluck('name', 'id')->all())
+          ->all();
+    }
+
+    return self::$eavComplexOptionsCache[$typeId];
   }
 
   protected function loadEavData(Model $record, array &$data): void

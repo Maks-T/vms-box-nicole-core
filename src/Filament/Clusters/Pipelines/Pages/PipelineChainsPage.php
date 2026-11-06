@@ -154,6 +154,41 @@ class PipelineChainsPage extends Page implements HasForms, HasTable, HasActions
     return app(PipelineTreeService::class)->resolveRootTypeCode($pipeline);
   }
 
+  /**
+   * Метка версии схемы пайплайна на время запроса (protected - не сериализуется Livewire).
+   *
+   * @since 2026-11-06
+   */
+  protected ?string $pipelineStamp = null;
+
+  /**
+   * Валидность дерева для строки списка.
+   *
+   * Результат кэшируется и
+   * инвалидируется версиями каталога и правил привязки.
+   *
+   * @since 2026-11-06
+   */
+  protected function isTreeValid(\Illuminate\Database\Eloquent\Model $record): bool
+  {
+    $key = implode(':', [
+      'pipeline_tree_valid',
+      \Illuminate\Support\Facades\Cache::get(\Nicole\Box\Core\Support\Constants\CacheKey::CATALOG_VERSION, 1),
+      \Illuminate\Support\Facades\Cache::get(\Nicole\Box\Core\Support\Constants\CacheKey::PIPELINE_BINDINGS_VERSION, 1),
+      $this->pipeline_code,
+      // схема пайплайна (слоты) тоже влияет на валидность
+      $this->pipelineStamp ??= (string)Pipeline::where('code', $this->pipeline_code)->value('updated_at'),
+      $record->getMorphClass(),
+      $record->getKey(),
+    ]);
+
+    return (bool)\Illuminate\Support\Facades\Cache::remember($key, now()->addDay(), function () use ($record): bool {
+      $report = app(PipelineTreeService::class)->analyzeTree($record->id, $this->pipeline_code, $record->getMorphClass());
+
+      return (bool)($report['is_valid'] ?? false);
+    });
+  }
+
   public function table(Table $table): Table
   {
     return $table
@@ -213,8 +248,7 @@ class PipelineChainsPage extends Page implements HasForms, HasTable, HasActions
           ->state(function ($record): string {
             if (!$this->pipeline_code) return __('Has Errors');
 
-            $report = app(PipelineTreeService::class)->analyzeTree($record->id, $this->pipeline_code, $record->getMorphClass());
-            return $report && ($report['is_valid'] ?? false)
+            return $this->isTreeValid($record)
               ? __('Ready to Publish')
               : __('Has Errors');
           })

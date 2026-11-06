@@ -22,7 +22,6 @@ use Filament\Tables\Columns\ToggleColumn;
 use Filament\Tables\Enums\FiltersLayout;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\HtmlString;
 use Nicole\Box\Core\Filament\Helpers\TableHelper;
 use Nicole\Box\Core\Filament\Resources\ProductVariants\Filters\ProductVariantFilters;
@@ -39,12 +38,20 @@ class ProductVariantsTable
   public static function configure(Table $table): Table
   {
     return $table
+      // @since 2026-11-06: eager loading живёт в таблице,
+      // чтобы его получал и VariantsRelationManager внутри карточки товара
+      ->modifyQueryUsing(fn(\Illuminate\Database\Eloquent\Builder $query) => static::applyEagerLoads($query))
+      ->deferLoading()
+      // @since 2026-11-06: 10 строк по умолчанию — время рендера таблицы растёт линейно от числа строк
+      ->defaultPaginationPageOption(10)
+      ->paginationPageOptions([10, 25, 50, 100])
       ->columns([
         TableHelper::idColumn(),
 
         ImageColumn::make('preview_image')
           ->label(__('Photo'))
           ->state(function (ProductVariant $record) {
+            // media и product.media подгружены в applyEagerLoads()
             $url = $record->getPreviewUrl();
             if (!$url) {
               return null;
@@ -138,14 +145,15 @@ class ProductVariantsTable
         TextInputColumn::make('markup_percent')
           ->label(__('Markup (%)'))
           ->state(function (ProductVariant $record) {
-            $retailPriceTypeId = \Nicole\Box\Core\Models\PriceType::where('slug', 'retail')->value('id') ?? 1;
-            $priceRecord = $record->prices()->where('price_type_id', $retailPriceTypeId)->first();
+            // @since 2026-11-06: id типа цены - 1 раз за запрос, prices - eager
+            $retailPriceTypeId = static::retailPriceTypeId();
+            $priceRecord = $record->prices->firstWhere('price_type_id', $retailPriceTypeId);
             return $priceRecord?->markup_percent ?? 0.0;
           })
           ->disabled(fn(ProductVariant $record) => !$record->is_manual_pricing)
           ->updateStateUsing(function (ProductVariant $record, $state) {
             try {
-              $retailPriceTypeId = \Nicole\Box\Core\Models\PriceType::where('slug', 'retail')->value('id') ?? 1;
+              $retailPriceTypeId = static::retailPriceTypeId();
               \Nicole\Box\Core\Models\ProductVariantPrice::updateOrCreate(
                 ['product_variant_id' => $record->id, 'price_type_id' => $retailPriceTypeId],
                 ['markup_percent' => (float)$state]
@@ -289,6 +297,37 @@ class ProductVariantsTable
   }
 
   /**
+   * Единый набор связей для списка модификаций (ресурс + relation manager товара).
+   *
+   * @since 2026-11-06
+   */
+  public static function applyEagerLoads(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+  {
+    return $query->with([
+      'media',
+      'product.media',
+      'product.category',
+      'product.unit',
+      'product.attributeValues.option',
+      'product.attributeValues.complexRecord',
+      'attributeValues.option',
+      'attributeValues.complexRecord',
+      'priceGroup',
+      'prices',
+    ]);
+  }
+
+  /**
+   * ID розничного типа цены - один запрос на HTTP-запрос.
+   *
+   * @since 2026-11-06
+   */
+  protected static function retailPriceTypeId(): int
+  {
+    return once(fn(): int => (int)(\Nicole\Box\Core\Models\PriceType::where('slug', 'retail')->value('id') ?? 1));
+  }
+
+  /**
    * Динамическое формирование колонок EAV-атрибутов с флагом show_in_variant_grid.
    *
    * @return array<\Filament\Tables\Columns\Column>
@@ -296,16 +335,13 @@ class ProductVariantsTable
    */
   protected static function buildDynamicAttributeColumns(): array
   {
-    if (!Schema::hasTable('attribute_ui_settings')) {
-      return [];
-    }
-
+    // @since 2026-11-06: Таблица создаётся миграцией ядра.
     $user = auth()->user();
-    $attributes = Attribute::query()
+    $attributes = once(fn() => Attribute::query()
       ->whereHas('uiSetting', fn($q) => $q->where('show_in_variant_grid', true))
       ->with(['uiSetting', 'options'])
       ->get()
-      ->sortBy(fn($attr) => $attr->uiSetting?->grid_sort_order ?? 0);
+      ->sortBy(fn($attr) => $attr->uiSetting?->grid_sort_order ?? 0));
 
     $columns = [];
 

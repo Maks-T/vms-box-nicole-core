@@ -63,17 +63,8 @@ class ProductVariantResource extends Resource
 
   public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
   {
-    return parent::getEloquentQuery()
-      ->with([
-        'product.category',
-        'product.attributeValues.attribute',
-        'product.attributeValues.option',
-        'product.unit',
-        'attributeValues.attribute',
-        'attributeValues.option',
-        'priceGroup',
-      ])
-      ->withSum('stocks as stocks_sum_quantity', 'quantity');
+    // @since 2026-11-06: связи для списка перенесены в ProductVariantsTable::applyEagerLoads()
+    return parent::getEloquentQuery()->with('product');
   }
 
   public static function getPages(): array

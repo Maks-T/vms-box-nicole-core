@@ -39,6 +39,9 @@ class TableHelper
         // Добавляем картинки вариаций
         if ($record->relationLoaded('variants') && $record->variants) {
           foreach ($record->variants as $variant) {
+            // @since 2026-11-06: обратная связь из памяти — у вариации без фото каскад
+            // берёт фото товара из уже загруженного $record, а не запросом на каждую строку
+            $variant->setRelation('product', $record);
             if (method_exists($variant, 'getPreviewUrl') && $vUrl = $variant->getPreviewUrl()) {
               $urls[] = str_starts_with($vUrl, 'http') ? $vUrl : url($vUrl);
             }

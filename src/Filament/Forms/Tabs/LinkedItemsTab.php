@@ -32,7 +32,7 @@ class LinkedItemsTab
                     ->schema([
                         Select::make('temp_product_type')
                             ->label(__('Type'))
-                            ->options(ProductType::query()->pluck('name', 'id'))
+                            ->options(fn () => static::productTypeOptions())
                             ->live()
                             ->dehydrated(false)
                             ->columnSpan(3)
@@ -51,20 +51,34 @@ class LinkedItemsTab
                         ProductSelect::make('child_id')
                             ->label(__('Linked Product'))
                             ->required()
+                            // @since 2026-11-06: первые 50 для прокрутки + серверный поиск по типу, с eager loading.
                             ->options(function (Get $get) {
                                 $typeId = $get('temp_product_type');
                                 if (! $typeId) {
                                     return [];
                                 }
-
-                                return Product::query()
-                                    ->where('product_type_id', $typeId)
+                                return static::linkedProductsQuery((int) $typeId)
+                                    ->limit(50)
                                     ->get()
-                                    ->mapWithKeys(
-                                        fn ($p) => [
-                                            $p->id => ProductSelect::renderProductOption($p),
-                                        ],
-                                    );
+                                    ->mapWithKeys(fn ($p) => [$p->id => ProductSelect::renderProductOption($p)])
+                                    ->all();
+                            })
+                            ->getSearchResultsUsing(function (string $search, Get $get) {
+                                $typeId = $get('temp_product_type');
+                                if (! $typeId) {
+                                    return [];
+                                }
+
+                                $locale = app()->getLocale();
+
+                                return static::linkedProductsQuery((int) $typeId)
+                                    ->where(fn ($q) => $q
+                                        ->where("name->{$locale}", 'ilike', "%{$search}%")
+                                        ->orWhere('code', 'ilike', "%{$search}%"))
+                                    ->limit(50)
+                                    ->get()
+                                    ->mapWithKeys(fn ($p) => [$p->id => ProductSelect::renderProductOption($p)])
+                                    ->all();
                             })
                             ->columnSpan(7),
 
@@ -79,5 +93,40 @@ class LinkedItemsTab
                     ->columns(12)
                     ->defaultItems(0),
             ]);
+    }
+
+    /**
+     * @var array<int|string, string>|null
+     * @since 2026-11-06
+     */
+    private static ?array $productTypeOptions = null;
+
+    /**
+     * Типы товаров - один запрос на HTTP-запрос
+     *
+     * @return array<int|string, string>
+     * @since 2026-11-06
+     */
+    protected static function productTypeOptions(): array
+    {
+        return self::$productTypeOptions ??= ProductType::query()->pluck('name', 'id')->all();
+    }
+
+    /**
+     * Запрос товаров для селекта.
+     *
+     * @since 2026-11-06
+     */
+    protected static function linkedProductsQuery(int $typeId): \Illuminate\Database\Eloquent\Builder
+    {
+        return Product::query()
+            ->select(['id', 'name', 'code', 'min_price', 'product_type_id', 'sort_order'])
+            ->where('product_type_id', $typeId)
+            ->with([
+                'media',
+                'variants' => fn ($q) => $q->select(['id', 'product_id', 'is_default', 'is_active', 'sort_order'])->where('is_active', true),
+                'variants.media',
+            ])
+            ->orderBy('sort_order');
     }
 }

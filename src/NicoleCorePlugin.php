@@ -71,9 +71,6 @@ class NicoleCorePlugin implements Plugin
 
   public function boot(Panel $panel): void
   {
-    foreach ($this->getSubPlugins() as $plugin) {
-      $plugin->boot($panel);
-    }
   }
 
   public static function make(): static
