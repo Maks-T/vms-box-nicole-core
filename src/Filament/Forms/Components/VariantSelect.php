@@ -59,8 +59,9 @@ class VariantSelect extends Select
     $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#f3f4f6"/><text x="50" y="54" font-family="sans-serif" font-size="40" font-weight="600" fill="#9ca3af" dominant-baseline="middle" text-anchor="middle">' . mb_strtoupper(mb_substr($productName, 0, 1)) . '</text></svg>';
     $fallbackImage = 'data:image/svg+xml;base64,' . base64_encode($svg);
 
-    $imageUrl = $variant->getPreviewUrl()
-      ?? ($variant->product ? $variant->product->getPreviewUrl() : null)
+    // @since 2026-11-06: миниатюра 96×96 вместо оригинала
+    $imageUrl = $variant->getThumbUrl()
+      ?? ($variant->product ? $variant->product->getThumbUrl() : null)
       ?? $fallbackImage;
 
     return "

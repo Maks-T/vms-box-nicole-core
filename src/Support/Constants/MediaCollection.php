@@ -8,4 +8,11 @@ class MediaCollection
 {
   public const string MAIN = 'main';
   public const string PREVIEW = 'preview';
+
+  /**
+   * Конверсия-миниатюра 96×96 для таблиц и селектов админки.
+   *
+   * @since 2026-11-06
+   */
+  public const string THUMB = 'thumb';
 }

@@ -52,7 +52,8 @@ class ProductVariantsTable
           ->label(__('Photo'))
           ->state(function (ProductVariant $record) {
             // media и product.media подгружены в applyEagerLoads()
-            $url = $record->getPreviewUrl();
+            // @since 2026-11-06: миниатюра 96×96 вместо оригинала
+            $url = $record->getThumbUrl();
             if (!$url) {
               return null;
             }

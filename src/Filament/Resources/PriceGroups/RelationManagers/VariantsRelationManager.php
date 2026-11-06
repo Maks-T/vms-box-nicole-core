@@ -36,11 +36,14 @@ class VariantsRelationManager extends RelationManager
   {
     return $table
       ->recordTitleAttribute('sku')
+      // @since 2026-11-06: медиа и товар одним запросом
+      ->modifyQueryUsing(fn (\Illuminate\Database\Eloquent\Builder $query) => $query->with(['media', 'product.media']))
       ->columns([
         ImageColumn::make('preview_image')
           ->label(__('Photo'))
           ->state(function (ProductVariant $record) {
-            return $record->getPreviewUrl() ?? null;
+            // @since 2026-11-06: миниатюра 96×96 вместо оригинала
+            return $record->getThumbUrl();
           })
           ->circular()
           ->imageWidth(45)

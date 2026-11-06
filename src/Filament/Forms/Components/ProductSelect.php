@@ -60,7 +60,8 @@ class ProductSelect extends Select
       '</text></svg>';
     $fallbackImage = 'data:image/svg+xml;base64,' . base64_encode($svg);
 
-    $imageUrl = $product->getPreviewUrl() ?: $fallbackImage;
+    // @since 2026-11-06: миниатюра 96×96 вместо оригинала
+    $imageUrl = $product->getThumbUrl() ?: $fallbackImage;
 
     return "
       <div style='display: flex; align-items: center; gap: 12px; padding: 4px 0;'>
