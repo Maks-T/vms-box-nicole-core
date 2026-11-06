@@ -165,6 +165,16 @@ return [
   */
   'locales' => array_map('trim', explode(',', env('VMS_LOCALES', 'ru,en'))),
 
+  'locale_cookie' => env('VMS_LOCALE_COOKIE', 'vms_locale'),
+
+  'locale_from_browser' => (bool)env('VMS_LOCALE_FROM_BROWSER', false),
+
+  'order_prefix' => env('VMS_ORDER_PREFIX', 'O'),
+
+  'admin_emails' => env('ADMIN_EMAILS'),
+
+  'client_site_url' => env('CLIENT_SITE_URL', env('APP_URL', '/')),
+
   /*
   |--------------------------------------------------------------------------
   | Путь к исполняемому файлу Chrome / Chromium

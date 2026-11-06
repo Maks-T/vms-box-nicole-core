@@ -35,7 +35,7 @@ class SendOrderNotificationsListener implements ShouldQueue
     $order->loadMissing(['customer', 'sections']);
 
     // 1. Отправка Алексею / Администраторам на почту из ADMIN_EMAILS
-    $adminEmailsRaw = env('ADMIN_EMAILS', config('mail.admin_emails'));
+    $adminEmailsRaw = config('nicole.admin_emails') ?: config('mail.admin_emails');
     if ($adminEmailsRaw) {
       $adminEmails = array_filter(array_map('trim', explode(',', (string)$adminEmailsRaw)));
       if (!empty($adminEmails)) {

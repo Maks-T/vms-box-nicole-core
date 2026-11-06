@@ -6,7 +6,6 @@ namespace Nicole\Box\Core\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\App;
 use Nicole\Box\Core\Models\Channel;
 
 class EnforceChannelContext
@@ -14,7 +13,6 @@ class EnforceChannelContext
     public function handle(Request $request, Closure $next)
     {
         $channelCode = $request->header('X-Sales-Channel', 'widget');
-        $lang = $request->header('Accept-Language', 'ru');
 
         if (! $channelCode) {
             return response()->json(
@@ -33,9 +31,6 @@ class EnforceChannelContext
                 403,
             );
         }
-
-        // Устанавливаем язык глобально для всего Laravel
-        App::setLocale(substr($lang, 0, 2));
 
         // Сохраняем канал в конфиг для ресурсов
         config(['app.channel' => $channelCode]);

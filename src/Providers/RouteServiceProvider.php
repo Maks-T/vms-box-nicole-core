@@ -19,7 +19,11 @@ class RouteServiceProvider extends ServiceProvider
   {
     if (!$this->app->routesAreCached()) {
       Route::prefix('api/v1')
-        ->middleware(['api', \Nicole\Box\Core\Http\Middleware\EnforceChannelContext::class])
+        ->middleware([
+          'api',
+          \Nicole\Box\Core\Http\Middleware\ResolveLocale::class,
+          \Nicole\Box\Core\Http\Middleware\EnforceChannelContext::class,
+        ])
         ->group(__DIR__ . '/../../routes/api.php');
     }
   }

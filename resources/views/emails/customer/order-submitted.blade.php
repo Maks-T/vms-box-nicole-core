@@ -16,16 +16,16 @@
 <body>
 <div class="container">
   <div style="text-align: center; margin-bottom: 24px;">
-    <a href="{{ env('CLIENT_SITE_URL', 'http://amigrupp.ru/') }}" target="_blank" style="text-decoration: none;">
+    <a href="{{ config('nicole.client_site_url') }}" target="_blank" style="text-decoration: none;">
       <h1 style="margin: 0; color: #00B7C2; font-size: 26px; font-weight: 800; letter-spacing: -0.5px;">
-        {{ config('mail.from.name', 'АМИГРУПП') }}
+        {{ config('mail.from.name', config('app.name')) }}
       </h1>
     </a>
   </div>
 
   <h2>{{ __('Hello, :name!', ['name' => $order->customer?->full_name ?: __('Dear customer')]) }}</h2>
 
-  <p>{!! __('Thank you for choosing <strong>:company</strong>. Your preliminary partition estimate has been created and registered in our system under number <strong>No. :code</strong>.', ['company' => e(config('mail.from.name', 'АМИГРУПП')), 'code' => e($order->code)]) !!}</p>
+  <p>{!! __('Thank you for choosing <strong>:company</strong>. Your preliminary partition estimate has been created and registered in our system under number <strong>No. :code</strong>.', ['company' => e(config('mail.from.name', config('app.name'))), 'code' => e($order->code)]) !!}</p>
 
   <div class="alert-box">
     <strong>{{ __('What happens next:') }}</strong> {{ __('Our specialist has already reviewed the specification and will contact you shortly to agree on the details and the measurement date.') }}
@@ -57,14 +57,14 @@
   </div>
 
   <div style="text-align: center; margin: 24px 0;">
-    <a href="{{ env('CLIENT_SITE_URL', 'http://amigrupp.ru/') }}" target="_blank" style="display: inline-block; padding: 12px 24px; background: #00B7C2; color: #ffffff; text-decoration: none; font-weight: 700; border-radius: 6px; font-size: 13px;">
+    <a href="{{ config('nicole.client_site_url') }}" target="_blank" style="display: inline-block; padding: 12px 24px; background: #00B7C2; color: #ffffff; text-decoration: none; font-weight: 700; border-radius: 6px; font-size: 13px;">
       {{ __('Go to website') }}
     </a>
   </div>
 
   <div class="footer">
-    <p style="margin: 2px 0;">{{ __('Best regards,') }} <a href="{{ env('CLIENT_SITE_URL', 'http://amigrupp.ru/') }}" target="_blank" style="color: #00B7C2; text-decoration: none; font-weight: 600;">{{ config('mail.from.name', 'АМИГРУПП') }}</a></p>
-    <p style="margin: 2px 0;">{{ __('Website:') }} <a href="{{ env('CLIENT_SITE_URL', 'http://amigrupp.ru/') }}" target="_blank" style="color: #64748b;">{{ env('CLIENT_SITE_URL', 'http://amigrupp.ru/') }}</a></p>
+    <p style="margin: 2px 0;">{{ __('Best regards,') }} <a href="{{ config('nicole.client_site_url') }}" target="_blank" style="color: #00B7C2; text-decoration: none; font-weight: 600;">{{ config('mail.from.name', config('app.name')) }}</a></p>
+    <p style="margin: 2px 0;">{{ __('Website:') }} <a href="{{ config('nicole.client_site_url') }}" target="_blank" style="color: #64748b;">{{ config('nicole.client_site_url') }}</a></p>
     <p style="margin: 8px 0 0 0; font-size: 11px;">{{ __('You received this email because you submitted an estimate request in the online calculator.') }}</p>
   </div>
 </div>

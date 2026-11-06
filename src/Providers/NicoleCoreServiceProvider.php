@@ -13,6 +13,7 @@ use Nicole\Box\Core\Services\PricingManager;
 use Nicole\Box\Core\Models\Media;
 use Nicole\Box\Core\Support\Media\NicolePathGenerator;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Cookie\Middleware\EncryptCookies;
 
 class NicoleCoreServiceProvider extends ServiceProvider
 {
@@ -44,6 +45,8 @@ class NicoleCoreServiceProvider extends ServiceProvider
   {
 
     Event::listen(OrderCheckoutSubmitted::class, SendOrderNotificationsListener::class);
+
+    EncryptCookies::except([(string)config('nicole.locale_cookie', 'vms_locale')]);
     $this->loadViewsFrom(__DIR__ . '/../../resources/views', 'nicole-core');
 
     $this->registerCorePolicies();

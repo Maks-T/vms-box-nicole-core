@@ -79,7 +79,7 @@ class Order extends Model
   {
     static::creating(function (Order $order) {
       if (empty($order->code)) {
-        $prefix = env('VMS_ORDER_PREFIX', 'O');
+        $prefix = config('nicole.order_prefix', 'O');
         $year = date('y');
         $sequence = self::count() + 1;
 

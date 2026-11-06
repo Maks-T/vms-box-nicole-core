@@ -39,7 +39,7 @@ class CustomerOrderSubmittedMail extends Mailable implements ShouldQueue
 
   public function envelope(): Envelope
   {
-    $fromName = config('mail.from.name', 'АМИГРУПП');
+    $fromName = config('mail.from.name', config('app.name'));
 
     return new Envelope(
       subject: __('Your estimate No. :code has been received', ['code' => $this->order->code]) . " | {$fromName}",

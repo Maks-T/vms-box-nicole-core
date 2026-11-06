@@ -55,6 +55,7 @@ class CalculatorController
       ],
       'type' => $type,
       'widget' => $widgetSlug,
+      'lang' => app()->getLocale(),
     ];
 
     $embedUrl = $this->resolveEmbedUrl($baseUrl, $widgetSlug);

@@ -153,7 +153,7 @@ class OrderService
    */
   protected function createNewOrder(array $data, ?Customer $customer): Order
   {
-    $prefix = env('VMS_ORDER_PREFIX', 'O');
+    $prefix = config('nicole.order_prefix', 'O');
     $year = date('y');
     $sequence = Order::count() + 1;
 
