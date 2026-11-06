@@ -16,4 +16,8 @@ class CacheKey
 
   // Кэш схем пайплайнов
   public const string PIPELINE_SCHEMA_PREFIX = 'pipeline_schema_';
+
+  // Версия правил привязки: инкрементируется при любом изменении BindingRule,
+  // используется для инвалидации кэша валидности деревьев (PipelineChainsPage)
+  public const string PIPELINE_BINDINGS_VERSION = 'pipeline_bindings_version';
 }

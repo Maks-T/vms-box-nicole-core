@@ -22,7 +22,7 @@ class CurrencyResource extends Resource
 
     protected static ?string $recordTitleAttribute = 'name';
 
-    protected static ?string $slug = 'сurrencies';
+    protected static ?string $slug = 'currencies';
 
     protected static ?int $navigationSort = 8;
 

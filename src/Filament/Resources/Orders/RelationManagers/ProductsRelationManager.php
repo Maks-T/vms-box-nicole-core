@@ -35,6 +35,9 @@ class ProductsRelationManager extends RelationManager
       ->recordTitleAttribute('variant.sku')
       ->modifyQueryUsing(fn (Builder $query) => $query->with([
         'variant.product.unit',
+        // @since 2026-11-06: медиа для миниатюр без запроса на строку
+        'variant.media',
+        'variant.product.media',
         'order',
         'section'
       ]))
@@ -43,7 +46,8 @@ class ProductsRelationManager extends RelationManager
         ImageColumn::make('variant.preview_image')
           ->label(__('Photo'))
           ->state(function (OrderProduct $record) {
-            return $record->variant?->getPreviewUrl() ?? null;
+            // @since 2026-11-06: миниатюра 96×96 вместо оригинала
+            return $record->variant?->getThumbUrl();
           })
           ->circular()
           ->imageWidth(60)
@@ -89,7 +93,7 @@ class ProductsRelationManager extends RelationManager
             $unit = $record->variant?->product?->unit;
             return $unit
               ? ($unit->getTranslation('symbol', app()->getLocale()) ?? $unit->symbol)
-              : 'шт.';
+              : __('pcs.');
           })
           ->badge()
           ->color('gray')

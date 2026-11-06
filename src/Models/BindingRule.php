@@ -38,6 +38,21 @@ class BindingRule extends Model
         'sort_order',
     ];
 
+    /**
+     * Любое изменение правил сбрасывает кэш валидности деревьев.
+     *
+     * @since 2026-11-06
+     */
+    protected static function booted(): void
+    {
+        $bump = fn () => \Illuminate\Support\Facades\Cache::increment(
+            \Nicole\Box\Core\Support\Constants\CacheKey::PIPELINE_BINDINGS_VERSION
+        );
+
+        static::saved($bump);
+        static::deleted($bump);
+    }
+
     protected function casts(): array
     {
         return [

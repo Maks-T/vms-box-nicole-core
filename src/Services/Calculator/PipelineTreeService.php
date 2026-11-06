@@ -5,7 +5,12 @@ declare(strict_types=1);
 namespace Nicole\Box\Core\Services\Calculator;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Support\Collection;
+use Nicole\Box\Core\Models\ComplexDictionaryRecord;
+use Nicole\Box\Core\Models\Product;
+use Nicole\Box\Core\Models\ProductVariant;
 use Nicole\Box\Core\DTO\Pipeline\EntityReferenceDto;
 use Nicole\Box\Core\DTO\Pipeline\PipelineSlotDto;
 use Nicole\Box\Core\Models\BindingRule;
@@ -24,6 +29,26 @@ class PipelineTreeService
    * @var array<string, array>
    */
   protected static array $schemas = [];
+
+  /**
+   * Связи, нужные для построения узла (тип, картинка, имя) грузятся пачкой.
+   *
+   * @since 2026-11-06
+   * @var array<class-string, array<int, string>>
+   */
+  protected const NODE_EAGER_LOADS = [
+    ProductVariant::class => ['media', 'product.media', 'product.type'],
+    Product::class => ['media', 'type'],
+    ComplexDictionaryRecord::class => ['dictionary'],
+  ];
+
+  /**
+   * Кэш правил привязки на один проход analyzeTree(): "morph#id" => [role => Collection<BindingRule>].
+   *
+   * @since 2026-11-06
+   * @var array<string, Collection>
+   */
+  private array $rulesByParent = [];
 
   public static function registerSchema(string $pipelineCode, array $schema): void
   {
@@ -120,6 +145,10 @@ class PipelineTreeService
       return null;
     }
 
+    // @since 2026-11-06: сбрасываем кэш на каждый проход после действий (добавить/удалить узел)
+    $this->rulesByParent = [];
+    $entity->loadMissing(self::NODE_EAGER_LOADS[$entity::class] ?? []);
+
     return $this->analyzeNode($entity, $pipeline);
   }
 
@@ -178,11 +207,8 @@ class PipelineTreeService
       $isMultiple = $slot->isMultiple;
 
       // Полиморфный запрос правил привязки
-      $rules = BindingRule::where('parent_type', $entity->getMorphClass())
-        ->where('parent_id', $entity->getKey())
-        ->where('role', $roleCode)
-        ->orderBy('sort_order')
-        ->get();
+      // @since 2026-11-06: один запрос на узел (все роли сразу) с eager loading детей
+      $rules = $this->rulesFor($entity)->get($roleCode) ?? collect();
 
       if ($isMultiple) {
         $children = [];
@@ -315,6 +341,24 @@ class PipelineTreeService
       'fields' => $fieldReports,
       'pipeline_industry' => $pipeline->industry ?? null,
     ];
+  }
+
+  /**
+   * Все правила привязки узла, сгруппированные по роли, с подгруженными детьми.
+   *
+   * @since 2026-11-06
+   */
+  private function rulesFor(Model $entity): Collection
+  {
+    $key = $entity->getMorphClass() . '#' . $entity->getKey();
+
+    return $this->rulesByParent[$key] ??= BindingRule::query()
+      ->where('parent_type', $entity->getMorphClass())
+      ->where('parent_id', $entity->getKey())
+      ->orderBy('sort_order')
+      ->with(['child' => fn(MorphTo $morphTo) => $morphTo->morphWith(self::NODE_EAGER_LOADS)])
+      ->get()
+      ->groupBy('role');
   }
 
   /**

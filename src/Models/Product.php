@@ -102,7 +102,8 @@ class Product extends Model implements HasMedia
     $pricingManager = app(\Nicole\Box\Core\Services\PricingManager::class);
     $minPrice = null;
 
-    foreach ($this->variants()->where('is_active', true)->get() as $variant) {
+    // @since 2026-11-06: prices/priceGroup одним запросом
+    foreach ($this->variants()->where('is_active', true)->with(['prices', 'priceGroup'])->get() as $variant) {
       $price = $pricingManager->getVariantPrice($variant);
 
       if ($price > 0 && ($minPrice === null || $price < $minPrice)) {

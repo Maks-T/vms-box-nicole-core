@@ -144,7 +144,7 @@ class StatsOverview extends BaseWidget
       Stat::make(__('Currencies'), $stats['currencies'] ?? 0)
         ->icon('heroicon-o-globe-alt')
         ->description(__('Active system currencies'))
-        ->url('/admin/сurrencies'),
+        ->url('/admin/currencies'),
     ];
   }
 }

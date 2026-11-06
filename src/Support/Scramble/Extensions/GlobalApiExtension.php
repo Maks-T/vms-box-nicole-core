@@ -21,12 +21,12 @@ class GlobalApiExtension extends OperationExtension
     if (str_starts_with($uri, 'api/v1') || str_starts_with($uri, 'api/')) {
       $operation->addParameters([
         Parameter::make('X-Sales-Channel', 'header')
-          ->description('Код канала продаж для контекста настроек (например, widget или catalog).')
+          ->description('Sales channel code for the settings context (e.g. widget or catalog).')
           ->required(true)
           ->setSchema(Schema::fromType((new StringType)->default('widget'))),
 
         Parameter::make('Accept-Language', 'header')
-          ->description('Язык локализации текстовых полей (ru/en).')
+          ->description('Localization language of text fields (ru/en).')
           ->required(false)
           ->setSchema(Schema::fromType((new StringType)->default('ru'))),
       ]);

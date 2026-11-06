@@ -44,7 +44,8 @@ class ProductForm
             ->schema([
               NjxqlusRelationManager::make()
                 ->manager(VariantsRelationManager::class)
-                ->lazy(false)
+                // @since 2026-11-06: таблица модификаций грузится отдельным Livewire-запросом после открытия страницы
+                ->lazy(true)
             ]),
 
 
@@ -98,7 +99,8 @@ class ProductForm
                     // 1. Виртуальное поле "Семейство"
                     Select::make('family_id')
                       ->label(__('Product Family'))
-                      ->options(ProductFamily::pluck('name', 'id'))
+                      // @since 2026-11-06: замыкание - запрос выполняется только при рендере поля
+                      ->options(fn() => ProductFamily::pluck('name', 'id'))
                       ->live()
                       ->formatStateUsing(fn($record) => $record?->type?->family_id)
                       ->afterStateUpdated(fn(Set $set) => $set('product_type_id', null))

@@ -39,7 +39,11 @@ class TableHelper
         // Добавляем картинки вариаций
         if ($record->relationLoaded('variants') && $record->variants) {
           foreach ($record->variants as $variant) {
-            if (method_exists($variant, 'getPreviewUrl') && $vUrl = $variant->getPreviewUrl()) {
+            // @since 2026-11-06: обратная связь из памяти у вариации без фото каскад
+            // берёт фото товара из уже загруженного $record
+            $variant->setRelation('product', $record);
+            // @since 2026-11-06: миниатюра 96×96 вместо оригинала
+            if (method_exists($variant, 'getThumbUrl') && $vUrl = $variant->getThumbUrl()) {
               $urls[] = str_starts_with($vUrl, 'http') ? $vUrl : url($vUrl);
             }
           }

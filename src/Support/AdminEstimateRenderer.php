@@ -48,7 +48,7 @@ class AdminEstimateRenderer
         $html .= self::renderChildRows($item['children'], 1);
         $html .= "</table>";
       } else {
-        $html .= "<div style='padding: 10px; text-align: center; color: #9ca3af; font-size: 0.85rem;'>Нет деталей</div>";
+        $html .= "<div style='padding: 10px; text-align: center; color: #9ca3af; font-size: 0.85rem;'>" . e(__('No details')) . "</div>";
       }
 
       $html .= "

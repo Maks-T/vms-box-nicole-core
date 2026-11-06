@@ -69,18 +69,21 @@ class PricingManager
     /** @var PriceType $priceType */
     $priceType = $this->getPriceTypeBySlug($priceTypeSlug);
 
-    $product = $variant->product;
+    // @since 2026-11-06: убрано неиспользуемое `$product = $variant->product;`
 
     // Ручные наценки (только если включен ручной режим или у товара нет ценовой группы)
     if ($variant->is_manual_pricing || !$variant->price_group_id) {
+      // @since 2026-11-06: тип цены (с валютой) берём из уже закэшированной карты priceTypes
+      $isExactType = $priceType->slug === $priceTypeSlug;
+
       if ($variant->relationLoaded('prices')) {
-        $priceRecord = $variant->prices->first(function ($price) use ($priceTypeSlug) {
-          return $price->type && $price->type->slug === $priceTypeSlug;
-        });
+        $priceRecord = $isExactType
+          ? $variant->prices->firstWhere('price_type_id', $priceType->getKey())
+          : null;
       } else {
-        $priceRecord = $variant->prices()
-          ->whereHas('type', fn($q) => $q->where('slug', $priceTypeSlug))
-          ->first();
+        $priceRecord = $isExactType
+          ? $variant->prices()->where('price_type_id', $priceType->getKey())->first()
+          : null;
       }
 
       if ($priceRecord) {
@@ -90,7 +93,7 @@ class PricingManager
 
         if ($costPrice > 0) {
           $priceInCostCurrency = $costPrice * (1 + $markup / 100);
-          $targetCurrency = $priceRecord->type->currency->code ?? $this->baseCurrency->code;
+          $targetCurrency = $priceType->currency->code ?? $this->baseCurrency->code;
 
           return round($this->convert($priceInCostCurrency, $costCurrency, $targetCurrency), 2);
         }

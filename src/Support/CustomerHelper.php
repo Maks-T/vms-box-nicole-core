@@ -18,7 +18,7 @@ class CustomerHelper
 
     if (empty($fullName)) {
       return [
-        'first_name' => 'Клиент',
+        'first_name' => __('Client'),
         'last_name' => null,
         'middle_name' => null,
       ];

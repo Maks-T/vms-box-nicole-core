@@ -29,14 +29,20 @@ class CustomerOrderSubmittedMail extends Mailable implements ShouldQueue
   public function __construct(
     public Order $order,
     public ?string $pdfBinary = null
-  ) {}
+  ) {
+    // письмо клиенту отправляется на языке, в котором он делал расчёт
+    $supportedLocales = (array)config('nicole.locales', [config('app.locale')]);
+    if ($order->locale && in_array($order->locale, $supportedLocales, true)) {
+      $this->locale($order->locale);
+    }
+  }
 
   public function envelope(): Envelope
   {
     $fromName = config('mail.from.name', 'АМИГРУПП');
 
     return new Envelope(
-      subject: "Ваш расчет №{$this->order->code} принят | {$fromName}",
+      subject: __('Your estimate No. :code has been received', ['code' => $this->order->code]) . " | {$fromName}",
     );
   }
 
@@ -51,7 +57,7 @@ class CustomerOrderSubmittedMail extends Mailable implements ShouldQueue
   {
     if ($this->pdfBinary) {
       return [
-        Attachment::fromData(fn () => $this->pdfBinary, "КП_Заказ_{$this->order->code}.pdf")
+        Attachment::fromData(fn () => $this->pdfBinary, __('Proposal_Order_:code', ['code' => $this->order->code]) . '.pdf')
           ->withMime('application/pdf'),
       ];
     }

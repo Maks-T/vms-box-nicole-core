@@ -44,10 +44,10 @@ class ProductsTable
         TableHelper::externalCodeColumn(),
 
         TableHelper::codeColumn('code')
-          ->label(__('Code') . ' / Артикул'),
+          ->label(__('Code') . ' / ' . __('SKU / Article')),
 
         TableHelper::codeColumn('slug')
-          ->label('Символьный код (Slug)'),
+          ->label(__('Symbolic code (Slug)')),
 
         TextColumn::make('category.name')
           ->label(__('Category'))
@@ -62,7 +62,7 @@ class ProductsTable
           ->toggleable(),
 
         TextColumn::make('catalog_type')
-          ->label('Тип позиции')
+          ->label(__('Item type'))
           ->badge()
           ->color('gray')
           ->toggleable(isToggledHiddenByDefault: true),
