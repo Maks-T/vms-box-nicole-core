@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
   <meta charset="utf-8">
-  <title>Новая заявка #{{ $order->code }}</title>
+  <title>{{ __('New request #:code', ['code' => $order->code]) }}</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.5; color: #0f172a; background-color: #f8fafc; padding: 32px 16px; margin: 0; }
     .container { max-width: 560px; margin: 0 auto; background: #ffffff; padding: 36px 32px; border-radius: 8px; border: 1px solid #e2e8f0; }
@@ -29,28 +29,28 @@
 </head>
 <body>
 <div class="container">
-  <div class="header-tag">Конфигуратор душевых ограждений</div>
-  <h1>Заказ #{{ $order->code }}</h1>
+  <div class="header-tag">{{ __('Shower enclosure configurator') }}</div>
+  <h1>{{ __('Order #:code', ['code' => $order->code]) }}</h1>
 
   <div class="price-row">
-    <span class="price-label">Сумма расчета</span>
+    <span class="price-label">{{ __('Estimate amount') }}</span>
     <span class="price-value">{{ number_format((float)$order->grand_total, 2, '.', ' ') }} {{ $order->currency }}</span>
   </div>
 
   <div class="actions">
     <a href="{{ url('/admin/orders/' . $order->id . '/edit') }}" class="btn-primary" target="_blank">
-      Перейти в панель CRM →
+      {{ __('Open in CRM panel') }} →
     </a>
-    <a href="{{ url('/api/v1/orders/' . $order->code . '/html') }}" class="btn-link" target="_blank">Смета HTML</a>
-    <a href="{{ url('/api/v1/orders/' . $order->code . '/pdf') }}" class="btn-link" target="_blank">Скачать PDF</a>
-    <a href="{{ url('/calculator?code=' . $order->code) }}" class="btn-link" target="_blank">Открыть 3D</a>
+    <a href="{{ url('/api/v1/orders/' . $order->code . '/html') }}" class="btn-link" target="_blank">{{ __('HTML estimate') }}</a>
+    <a href="{{ url('/api/v1/orders/' . $order->code . '/pdf') }}" class="btn-link" target="_blank">{{ __('Download PDF') }}</a>
+    <a href="{{ url('/calculator?code=' . $order->code) }}" class="btn-link" target="_blank">{{ __('Open 3D') }}</a>
   </div>
 
-  <div class="section-title">Контакты покупателя</div>
+  <div class="section-title">{{ __('Customer contacts') }}</div>
   <table class="data-table">
-    <tr><td class="label">Клиент:</td><td class="val">{{ $order->customer?->full_name ?: 'Не указано' }}</td></tr>
+    <tr><td class="label">{{ __('Client:') }}</td><td class="val">{{ $order->customer?->full_name ?: __('Not specified') }}</td></tr>
     @if($order->customer?->phone)
-      <tr><td class="label">Телефон:</td><td class="val"><a href="tel:{{ $order->customer->phone }}">{{ $order->customer->phone }}</a></td></tr>
+      <tr><td class="label">{{ __('Phone:') }}</td><td class="val"><a href="tel:{{ $order->customer->phone }}">{{ $order->customer->phone }}</a></td></tr>
     @endif
     @if($order->customer?->email)
       <tr><td class="label">Email:</td><td class="val"><a href="mailto:{{ $order->customer->email }}">{{ $order->customer->email }}</a></td></tr>
@@ -58,7 +58,7 @@
   </table>
 
   @if($order->sections->isNotEmpty())
-    <div class="section-title">Параметры конструкции</div>
+    <div class="section-title">{{ __('Structure parameters') }}</div>
     @foreach($order->sections as $section)
       @if(!empty($section->description) && is_array($section->description))
         <ul class="specs-list">
@@ -76,7 +76,7 @@
   @endif
 
   <div class="footer">
-    Уведомление платформы VMS-NC
+    {{ __('VMS-NC platform notification') }}
   </div>
 </div>
 </body>

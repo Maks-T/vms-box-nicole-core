@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
   <meta charset="utf-8">
-  <title>Ваш расчет #{{ $order->code }} принят</title>
+  <title>{{ __('Your estimate No. :code has been received', ['code' => $order->code]) }}</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1e293b; background-color: #f8fafc; padding: 24px; margin: 0; }
     .container { max-width: 580px; margin: 0 auto; background: #ffffff; padding: 32px; border-radius: 12px; border-top: 5px solid #00B7C2; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
@@ -23,20 +23,20 @@
     </a>
   </div>
 
-  <h2>Здравствуйте, {{ $order->customer?->full_name ?: 'Уважаемый клиент' }}!</h2>
+  <h2>{{ __('Hello, :name!', ['name' => $order->customer?->full_name ?: __('Dear customer')]) }}</h2>
 
-  <p>Благодарим вас за выбор компании <strong>{{ config('mail.from.name', 'АМИГРУПП') }}</strong>. Ваш предварительный расчет перегородки успешно сформирован и зарегистрирован в системе под номером <strong>№{{ $order->code }}</strong>.</p>
+  <p>{!! __('Thank you for choosing <strong>:company</strong>. Your preliminary partition estimate has been created and registered in our system under number <strong>No. :code</strong>.', ['company' => e(config('mail.from.name', 'АМИГРУПП')), 'code' => e($order->code)]) !!}</p>
 
   <div class="alert-box">
-    <strong>Что происходит сейчас:</strong> Наш специалист уже ознакомился со спецификацией и свяжется с вами в ближайшее время для согласования деталей и уточнения даты замера.
+    <strong>{{ __('What happens next:') }}</strong> {{ __('Our specialist has already reviewed the specification and will contact you shortly to agree on the details and the measurement date.') }}
   </div>
 
   <div class="summary-box">
     <h3 style="margin: 0 0 10px 0; font-size: 14px; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px;">
-      Сводка по расчету:
+      {{ __('Estimate summary:') }}
     </h3>
-    <p style="margin: 4px 0;"><strong>Номер расчета:</strong> {{ $order->code }}</p>
-    <p style="margin: 4px 0;"><strong>Итоговая сумма:</strong> <span style="color: #00B7C2; font-weight: 700;">{{ number_format((float)$order->grand_total, 2, '.', ' ') }} {{ $order->currency }}</span></p>
+    <p style="margin: 4px 0;"><strong>{{ __('Estimate number:') }}</strong> {{ $order->code }}</p>
+    <p style="margin: 4px 0;"><strong>{{ __('Grand total:') }}</strong> <span style="color: #00B7C2; font-weight: 700;">{{ number_format((float)$order->grand_total, 2, '.', ' ') }} {{ $order->currency }}</span></p>
 
     @if($order->sections->isNotEmpty())
       <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #cbd5e1; font-size: 13px;">
@@ -58,14 +58,14 @@
 
   <div style="text-align: center; margin: 24px 0;">
     <a href="{{ env('CLIENT_SITE_URL', 'http://amigrupp.ru/') }}" target="_blank" style="display: inline-block; padding: 12px 24px; background: #00B7C2; color: #ffffff; text-decoration: none; font-weight: 700; border-radius: 6px; font-size: 13px;">
-      Перейти на сайт amigrupp.ru
+      {{ __('Go to website') }}
     </a>
   </div>
 
   <div class="footer">
-    <p style="margin: 2px 0;">С уважением, производственная компания <a href="{{ env('CLIENT_SITE_URL', 'http://amigrupp.ru/') }}" target="_blank" style="color: #00B7C2; text-decoration: none; font-weight: 600;">{{ config('mail.from.name', 'АМИГРУПП') }}</a></p>
-    <p style="margin: 2px 0;">Сайт: <a href="{{ env('CLIENT_SITE_URL', 'http://amigrupp.ru/') }}" target="_blank" style="color: #64748b;">{{ env('CLIENT_SITE_URL', 'http://amigrupp.ru/') }}</a></p>
-    <p style="margin: 8px 0 0 0; font-size: 11px;">Вы получили это письмо, так как оставили заявку на расчет изделия в онлайн-калькуляторе.</p>
+    <p style="margin: 2px 0;">{{ __('Best regards,') }} <a href="{{ env('CLIENT_SITE_URL', 'http://amigrupp.ru/') }}" target="_blank" style="color: #00B7C2; text-decoration: none; font-weight: 600;">{{ config('mail.from.name', 'АМИГРУПП') }}</a></p>
+    <p style="margin: 2px 0;">{{ __('Website:') }} <a href="{{ env('CLIENT_SITE_URL', 'http://amigrupp.ru/') }}" target="_blank" style="color: #64748b;">{{ env('CLIENT_SITE_URL', 'http://amigrupp.ru/') }}</a></p>
+    <p style="margin: 8px 0 0 0; font-size: 11px;">{{ __('You received this email because you submitted an estimate request in the online calculator.') }}</p>
   </div>
 </div>
 </body>

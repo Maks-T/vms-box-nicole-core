@@ -83,7 +83,7 @@ class CalculatorWebhookController extends Controller
 
         return response()->json([
           'status' => 'success',
-          'message' => 'Калькулятор успешно обновлен',
+          'message' => __('Calculator updated successfully'),
           'data' => [
             'output' => $result->output(),
           ]
@@ -94,7 +94,7 @@ class CalculatorWebhookController extends Controller
 
       return response()->json([
         'status' => 'error',
-        'message' => 'Ошибка выполнения скрипта деплоя',
+        'message' => __('Deploy script execution error'),
         'error_output' => $result->errorOutput()
       ], 500);
 
@@ -103,7 +103,7 @@ class CalculatorWebhookController extends Controller
 
       return response()->json([
         'status' => 'error',
-        'message' => 'Внутренняя ошибка сервера',
+        'message' => __('Internal server error'),
         'error' => $e->getMessage()
       ], 500);
     }

@@ -31,9 +31,15 @@ class PdfExportController extends Controller
       ->format('A4')
       ->pdf();
 
+    $code = (string)$payload['order']->code;
+    $localizedName = __('Proposal_Order_:code', ['code' => $code]) . '.pdf';
+
     return response($pdfContent)
       ->header('Content-Type', 'application/pdf')
-      ->header('Content-Disposition', "inline; filename=\"КП_Заказ_{$payload['order']->code}.pdf\"");
+      ->header(
+        'Content-Disposition',
+        "inline; filename=\"Proposal_Order_{$code}.pdf\"; filename*=UTF-8''" . rawurlencode($localizedName)
+      );
   }
 
   /**
@@ -57,6 +63,12 @@ class PdfExportController extends Controller
       ->where('code', $code)
       ->firstOrFail();
 
+    // КП рендерится на языке заказа
+    $supportedLocales = (array)config('nicole.locales', [config('app.locale')]);
+    if ($order->locale && in_array($order->locale, $supportedLocales, true)) {
+      app()->setLocale($order->locale);
+    }
+
     $targetUrl = config('app.url') . "/calculator?orderId=" . $order->id;
 
     $qrOptions = new QROptions([
@@ -69,7 +81,7 @@ class PdfExportController extends Controller
 
     return [
       'order' => $order,
-      'title' => "КП № " . $order->code,
+      'title' => __('Proposal No. :code', ['code' => $order->code]),
       'qrCode' => $qrCodeBase64,
     ];
   }

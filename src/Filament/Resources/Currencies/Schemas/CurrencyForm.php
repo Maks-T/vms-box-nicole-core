@@ -48,7 +48,7 @@ class CurrencyForm
 
                   TextInput::make('symbol_native')
                     ->label(__('Official Symbol'))
-                    ->placeholder('руб.')
+                    ->placeholder(__('e.g. $'))
                     ->helperText(__('Used in printed forms and estimates'))
                     ->translatable(),
 

@@ -34,7 +34,7 @@ class AdminOrderAlertMail extends Mailable implements ShouldQueue
     $orderNumber = $this->order->code;
 
     return new Envelope(
-      subject: "Заявка с конфигуратора душевых (№{$orderNumber})",
+      subject: __('Request from the shower configurator (No. :code)', ['code' => $orderNumber]),
     );
   }
 

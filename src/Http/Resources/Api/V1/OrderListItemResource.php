@@ -76,7 +76,7 @@ class OrderListItemResource extends JsonResource
        * @var array{name: string, phone: string}|null
        */
       'customer' => $this->customer ? [
-        'name' => (string) ($this->customer->full_name ?? ($this->customer->first_name ?? 'Покупатель')),
+        'name' => (string) ($this->customer->full_name ?? ($this->customer->first_name ?? __('Customer'))),
         'phone' => (string) ($this->customer->phone ?? ''),
       ] : null,
 

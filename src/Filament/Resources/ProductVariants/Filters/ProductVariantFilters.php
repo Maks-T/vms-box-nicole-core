@@ -29,13 +29,13 @@ class ProductVariantFilters
         ->columnSpanFull()
         ->schema([
           SelectTree::make('category_id')
-            ->label('Дерево разделов каталога')
+            ->label(__('Catalog section tree'))
             ->query(fn() => Category::query(), 'name', 'parent_id')
             ->enableBranchNode()
             ->independent(false)
             ->searchable()
             ->multiple()
-            ->placeholder('Начните вводить название категории...'),
+            ->placeholder(__('Start typing a category name...')),
         ])
         ->query(function (Builder $query, array $data): Builder {
           if (blank($data['category_id'])) {
@@ -61,18 +61,18 @@ class ProductVariantFilters
 
           if (!empty($data['product_type_id'])) {
             $count = count($data['product_type_id']);
-            $indicators[] = Indicator::make("Типы товаров ({$count})")
+            $indicators[] = Indicator::make(__('Product types (:count)', ['count' => $count]))
               ->removeField('product_type_id'); // Позволяет сбросить конкретное поле [3.3.2]
           }
 
           if (isset($data['is_active']) && $data['is_active'] !== '') {
-            $label = $data['is_active'] === '1' ? 'Только активные' : 'Только скрытые';
+            $label = $data['is_active'] === '1' ? __('Active only') : __('Hidden only');
             $indicators[] = Indicator::make($label)
               ->removeField('is_active');
           }
 
           if (isset($data['has_images']) && $data['has_images'] !== '') {
-            $label = $data['has_images'] === '1' ? 'С изображениями' : 'Без изображений';
+            $label = $data['has_images'] === '1' ? __('With images') : __('Without images');
             $indicators[] = Indicator::make($label)
               ->removeField('has_images');
           }
@@ -80,13 +80,13 @@ class ProductVariantFilters
           if (filled($data['stock_from']) || filled($data['stock_to'])) {
             $from = $data['stock_from'] ?? '0';
             $to = $data['stock_to'] ?? '∞';
-            $indicators[] = Indicator::make("Остаток: {$from} - {$to}")
+            $indicators[] = Indicator::make(__('Stock: :from - :to', ['from' => $from, 'to' => $to]))
               ->removeField('stock_from')
               ->removeField('stock_to');
           }
 
           if (filled($data['updated_from']) || filled($data['updated_to'])) {
-            $indicators[] = Indicator::make('По дате обновления')
+            $indicators[] = Indicator::make(__('By update date'))
               ->removeField('updated_from')
               ->removeField('updated_to');
           }
@@ -94,18 +94,18 @@ class ProductVariantFilters
           return $indicators;
         })
         ->schema([
-          Section::make('Дополнительные параметры поиска')
+          Section::make(__('Additional search parameters'))
 
             ->description(function (Get $get) {
               $active = [];
-              if (!empty($get('product_type_id'))) $active[] = 'схема типа';
-              if ($get('is_active') !== null && $get('is_active') !== '') $active[] = 'статус на сайте';
-              if ($get('has_images') !== null && $get('has_images') !== '') $active[] = 'изображения';
-              if ($get('stock_from') || $get('stock_to')) $active[] = 'остаток';
-              if ($get('updated_from') || $get('updated_to')) $active[] = 'дата обновления';
+              if (!empty($get('product_type_id'))) $active[] = __('type schema');
+              if ($get('is_active') !== null && $get('is_active') !== '') $active[] = __('site status');
+              if ($get('has_images') !== null && $get('has_images') !== '') $active[] = __('images');
+              if ($get('stock_from') || $get('stock_to')) $active[] = __('stock');
+              if ($get('updated_from') || $get('updated_to')) $active[] = __('update date');
 
               if (empty($active)) {
-                return 'Настройте фильтрацию по ценам, остаткам и статусам';
+                return __('Filter by prices, stock and statuses');
               }
 
               $badges = collect($active)->map(function ($text) {
@@ -114,7 +114,7 @@ class ProductVariantFilters
 
               return new HtmlString('
                 <div class="flex items-center gap-2 flex-wrap mt-1">
-                  <span class="text-xs text-gray-500 dark:text-gray-400">Активные фильтры:</span>
+                  <span class="text-xs text-gray-500 dark:text-gray-400">' . e(__('Active filters:')) . '</span>
                   ' . $badges . '
                 </div>
               ');
@@ -135,19 +135,19 @@ class ProductVariantFilters
                 ->native(false),
 
               Select::make('is_active')
-                ->label('Статус на сайте')
+                ->label(__('Site status'))
                 ->options([
-                  '1' => 'Активен',
-                  '0' => 'Скрыт',
+                  '1' => __('Active'),
+                  '0' => __('Hidden'),
                 ])
                 ->live()
                 ->native(false),
 
               Select::make('has_images')
-                ->label('Наличие изображений')
+                ->label(__('Image availability'))
                 ->options([
-                  '1' => 'Только с фото',
-                  '0' => 'Без фотографий',
+                  '1' => __('With photos only'),
+                  '0' => __('Without photos'),
                 ])
                 ->live()
                 ->native(false),
@@ -156,12 +156,12 @@ class ProductVariantFilters
               Grid::make(2)
                 ->schema([
                   TextInput::make('stock_from')
-                    ->label('Остаток от')
+                    ->label(__('Stock from'))
                     ->numeric()
                     ->live(onBlur: true)
                     ->placeholder('0'),
                   TextInput::make('stock_to')
-                    ->label('Остаток до')
+                    ->label(__('Stock to'))
                     ->numeric()
                     ->live(onBlur: true)
                     ->placeholder('999...'),
@@ -171,11 +171,11 @@ class ProductVariantFilters
               Grid::make(2)
                 ->schema([
                   DatePicker::make('updated_from')
-                    ->label('Обновлен с')
+                    ->label(__('Updated from'))
                     ->live()
                     ->native(false),
                   DatePicker::make('updated_to')
-                    ->label('Обновлен по')
+                    ->label(__('Updated to'))
                     ->live()
                     ->native(false),
                 ])

@@ -140,7 +140,7 @@ class OrderService
       $data['name']
       ?? $data['title']
       ?? ($calcState['project']['name'] ?? '')
-      ?: ('Расчет от ' . date('d.m.Y H:i'))
+      ?: __('Estimate of :date', ['date' => date('d.m.Y H:i')])
     );
   }
 
@@ -233,7 +233,7 @@ class OrderService
     foreach ($results as $index => $resultData) {
       $price = $resultData['price'] ?? [];
       $meta = $resultData['meta'] ?? [];
-      $sectionTitle = $resultData['title'] ?? ('Изделие №' . ($index + 1));
+      $sectionTitle = $resultData['title'] ?? __('Item No. :num', ['num' => $index + 1]);
 
       // Тип изделия: берем явный type, либо fallback на форму/продукт
       $sectionType = $resultData['type']

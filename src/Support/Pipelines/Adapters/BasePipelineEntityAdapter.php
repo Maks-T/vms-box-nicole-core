@@ -70,7 +70,7 @@ abstract class BasePipelineEntityAdapter implements PipelineEntityAdapterInterfa
    */
   protected function renderConfiguredBadge(string $html): string
   {
-    $badge = "<span style='margin-left: 6px; padding: 2px 6px; font-size: 0.65rem; font-weight: 700; background: #fee2e2; color: #dc2626; border-radius: 4px;'>Уже в цепочке</span>";
+    $badge = "<span style='margin-left: 6px; padding: 2px 6px; font-size: 0.65rem; font-weight: 700; background: #fee2e2; color: #dc2626; border-radius: 4px;'>" . e(__('Already in chain')) . "</span>";
     $withBadge = preg_replace('/(ID:\s*\d+)/', '$1 ' . $badge, $html);
     return "<div style='opacity: 0.5; filter: grayscale(80%);'>{$withBadge}</div>";
   }

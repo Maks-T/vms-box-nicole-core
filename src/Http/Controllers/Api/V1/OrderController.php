@@ -194,7 +194,7 @@ class OrderController extends Controller
        * @var string
        * @example "Заказ успешно удален."
        */
-      'message' => 'Заказ успешно удален.',
+      'message' => __('Order deleted successfully.'),
     ]);
   }
 
@@ -223,7 +223,7 @@ class OrderController extends Controller
        * @var string
        * @example "Заказ, спецификации и сметные товары успешно сохранены."
        */
-      'message' => 'Заказ, спецификации и сметные товары успешно сохранены.',
+      'message' => __('Order, specifications and estimate items saved successfully.'),
     ]);
 
     $response->response()->setStatusCode($order->wasRecentlyCreated ? 201 : 200);

@@ -18,7 +18,7 @@ class OrderListResource extends JsonResource
   public function toArray(Request $request): array
   {
     $firstSectionTitle = $this->sections->first()?->title;
-    $orderTitle = $firstSectionTitle ?: ('Расчет ' . $this->code);
+    $orderTitle = $firstSectionTitle ?: __('Estimate :code', ['code' => $this->code]);
 
     return [
       'id' => $this->id,

@@ -89,7 +89,7 @@ class ProductsRelationManager extends RelationManager
             $unit = $record->variant?->product?->unit;
             return $unit
               ? ($unit->getTranslation('symbol', app()->getLocale()) ?? $unit->symbol)
-              : 'шт.';
+              : __('pcs.');
           })
           ->badge()
           ->color('gray')

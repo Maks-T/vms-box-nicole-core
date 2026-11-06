@@ -2,7 +2,7 @@
   /** @var \Nicole\Box\Core\Models\Order $order */
 
     $currencySymbol = match($order->currency) {
-        'RUB' => 'руб.',
+        'RUB' => __('rub.'),
         'USD' => '$',
         'BYN' => 'Br',
         default => $order->currency
@@ -13,7 +13,7 @@
 <html lang="{{ $order->locale ?? 'ru' }}">
 <head>
   <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
-  <title>Заказ №{{ $order->id }}</title>
+  <title>{{ __('Order No. :num', ['num' => $order->id]) }}</title>
 </head>
 <body
   style="font-family: 'DejaVu Sans', sans-serif; padding: 40px; color: #1a1916; background-color: #fff; font-size: 14px; line-height: 1.4;">
@@ -23,17 +23,17 @@
     <td style="vertical-align: top; text-align: left;">
       <h2 style="margin: 0 0 10px 0; color: #111827; font-size: 24px;">{{ config('nicole.company.name') }}</h2>
       <div style="font-size: 12px; color: #6b7280; line-height: 16px;">
-        Адрес: {{ config('nicole.company.address') }}<br>
-        Email: {{ config('nicole.company.email') }} · Тел: {{ config('nicole.company.phone') }}
+        {{ __('Address:') }} {{ config('nicole.company.address') }}<br>
+        Email: {{ config('nicole.company.email') }} · {{ __('Tel:') }} {{ config('nicole.company.phone') }}
       </div>
     </td>
     <td style="vertical-align: top; text-align: right; width: 50%;">
       <div style="font-size: 12px; color: #9ca3af; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">
-        Документ
+        {{ __('Document') }}
       </div>
-      <div style="font-size: 14px; font-weight: bold; color: #111827;">КП № {{ $order->kp_number }}</div>
+      <div style="font-size: 14px; font-weight: bold; color: #111827;">{{ __('Proposal No. :code', ['code' => $order->kp_number]) }}</div>
       <div style="font-size: 12px; color: #4b5563; margin-top: 4px;">
-        Дата: {{ $order->created_at ? $order->created_at->format('d.m.Y') : date('d.m.Y') }} г.
+        {{ __('Date: :date', ['date' => $order->created_at ? $order->created_at->format('d.m.Y') : date('d.m.Y')]) }}
       </div>
     </td>
   </tr>
@@ -41,14 +41,14 @@
 
 <hr style="border: 0; border-top: 1px solid #e5e7eb; margin-bottom: 25px;">
 
-<h3 style="font-size: 18px; margin: 0 0 20px 0; color: #111827;">Спецификация заказа</h3>
+<h3 style="font-size: 18px; margin: 0 0 20px 0; color: #111827;">{{ __('Order specification') }}</h3>
 
 <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
   <thead>
   <tr style="background-color: #f3f4f6; border-bottom: 2px solid #d1d5db; color: #374151; font-weight: bold;">
-    <th style="padding: 10px; text-align: left;">Услуга / Работа</th>
-    <th style="padding: 10px; text-align: center; width: 100px;">Кол-во</th>
-    <th style="padding: 10px; text-align: right; width: 130px;">Итого</th>
+    <th style="padding: 10px; text-align: left;">{{ __('Service / Work') }}</th>
+    <th style="padding: 10px; text-align: center; width: 100px;">{{ __('Qty') }}</th>
+    <th style="padding: 10px; text-align: right; width: 130px;">{{ __('Total') }}</th>
   </tr>
   </thead>
   <tbody>
@@ -104,24 +104,20 @@
 
 @php
   $sectionsCount = $order->sections->count();
-  $sectionsWord = match (true) {
-      $sectionsCount === 1 => 'Одно изделие',
-      $sectionsCount > 1 && $sectionsCount < 5 => "{$sectionsCount} изделия",
-      default => "{$sectionsCount} изделий"
-  };
+  $sectionsWord = trans_choice(':count product|:count products', $sectionsCount);
 @endphp
 
 <div style="margin-top: 35px; text-align: right; border-top: 2px solid #d1d5db; padding-top: 15px;">
     <span
       style="font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 1px; display: block; margin-bottom: 5px;">
-        Итого к оплате по заказу ({{ $sectionsWord }}):
+        {{ __('Total due for the order (:items):', ['items' => $sectionsWord]) }}
     </span>
 
   <span style="font-size: 24px; font-weight: bold; color: #10b981; font-family: monospace; display: block;">
         {{ number_format($order->grand_total, 0, '.', ' ') }} {{ $currencySymbol }}
     </span>
   <span style="font-size: 11px; color: #9ca3af; display: block; margin-top: 4px;">
-        Все работы, материалы, замер, доставка и установка включены в стоимость.
+        {{ __('All works, materials, measurement, delivery and installation are included in the price.') }}
     </span>
 </div>
 

@@ -120,12 +120,12 @@ class ProductVariantsTable
               $record->product?->refreshMinPrice();
               Notification::make()
                 ->success()
-                ->title('Себестоимость сохранена')
+                ->title(__('Cost price saved'))
                 ->send();
             } catch (\Throwable $e) {
               Notification::make()
                 ->danger()
-                ->title('Ошибка изменения себестоимости')
+                ->title(__('Error changing cost price'))
                 ->body($e->getMessage())
                 ->persistent()
                 ->send();
@@ -153,12 +153,12 @@ class ProductVariantsTable
               $record->product?->refreshMinPrice();
               Notification::make()
                 ->success()
-                ->title('Процент наценки сохранен')
+                ->title(__('Markup percentage saved'))
                 ->send();
             } catch (\Throwable $e) {
               Notification::make()
                 ->danger()
-                ->title('Ошибка изменения наценки')
+                ->title(__('Error changing markup'))
                 ->body($e->getMessage())
                 ->persistent()
                 ->send();
